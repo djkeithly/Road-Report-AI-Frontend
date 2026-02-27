@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import Home from "@/views/Home.vue";
-  import TitleBar from "@/views/TitleBar.vue";
+  import TitleBar from "@/components/TitleBar.vue";
   import { RouterView } from "vue-router";
 </script>
 
