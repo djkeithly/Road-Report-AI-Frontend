@@ -1,0 +1,2699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Road Report AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   DESIGN TOKENS
+   ================================================================ */
+:root {
+  /* Light */
+  --bg-0: #F8F7F4;
+  --bg-1: #EFEEE9;
+  --bg-2: #E6E4DF;
+  --bg-3: #DDDBD5;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FDFCFA;
+  --bg-input: #FFFFFF;
+  --bg-overlay: rgba(0,0,0,0.45);
+
+  --accent: #0A7B65;
+  --accent-hover: #096B58;
+  --accent-muted: rgba(10,123,101,0.08);
+  --accent-text: #087A63;
+
+  --text-0: #161514;
+  --text-1: #5C5A56;
+  --text-2: #8E8C88;
+  --text-3: #B3B1AD;
+  --text-inv: #F8F7F4;
+  --text-on-accent: #FFFFFF;
+  --content-max: 520px;
+
+  --border-0: #E0DED8;
+  --border-1: #ECEAE5;
+
+  --risk-vlow: #3CA57A;
+  --risk-low: #5BB88A;
+  --risk-mod: #E4A63B;
+  --risk-high: #E07338;
+  --risk-severe: #D44040;
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
+  --shadow-ring: 0 0 0 3px var(--accent-muted);
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+  --transition-slow: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+  --grain-opacity: 0.025;
+  --noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+[data-theme="dark"] {
+  --bg-0: #0E0E0D;
+  --bg-1: #171716;
+  --bg-2: #1F1F1D;
+  --bg-3: #292826;
+  --bg-card: #171716;
+  --bg-card-hover: #1C1C1A;
+  --bg-input: #1F1F1D;
+  --bg-overlay: rgba(0,0,0,0.7);
+
+  --accent: #34C9A8;
+  --accent-hover: #48D6B6;
+  --accent-muted: rgba(52,201,168,0.1);
+  --accent-text: #34C9A8;
+
+  --text-0: #E8E6E1;
+  --text-1: #908E8A;
+  --text-2: #5E5D59;
+  --text-3: #3D3C3A;
+  --text-inv: #0E0E0D;
+  --text-on-accent: #0E0E0D;
+
+  --border-0: #292826;
+  --border-1: #1F1F1D;
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.15);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.3);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+
+  --grain-opacity: 0.04;
+}
+
+/* ================================================================
+   RESET & BASE
+   ================================================================ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  background: var(--bg-0);
+  color: var(--text-0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition-slow), color var(--transition-base);
+  overflow-x: hidden;
+}
+
+/* Grain overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--noise);
+  opacity: var(--grain-opacity);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+button { font-family: inherit; cursor: pointer; }
+input { font-family: inherit; }
+
+/* ================================================================
+   UTILITY ANIMATIONS
+   ================================================================ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@keyframes ringDraw {
+  from { stroke-dashoffset: 251; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-up { animation: fadeUp 0.6s var(--transition-slow) both; }
+.animate-in { animation: fadeIn 0.5s ease both; }
+.delay-1 { animation-delay: 0.08s; }
+.delay-2 { animation-delay: 0.16s; }
+.delay-3 { animation-delay: 0.24s; }
+.delay-4 { animation-delay: 0.32s; }
+.delay-5 { animation-delay: 0.4s; }
+.delay-6 { animation-delay: 0.48s; }
+
+/* ================================================================
+   TOP BAR (Design System Controls)
+   ================================================================ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--border-0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 56px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.topbar-title {
+  font-family: 'Newsreader', serif;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.topbar-title em {
+  color: var(--accent-text);
+  font-style: italic;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Theme switch */
+.theme-switch {
+  display: flex;
+  background: var(--bg-1);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.theme-switch button {
+  padding: 5px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  transition: all var(--transition-base);
+  line-height: 1;
+}
+
+.theme-switch button.active {
+  background: var(--bg-card);
+  color: var(--text-0);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Tab nav for screens */
+.tab-nav {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-1);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  border: 1px solid var(--border-0);
+}
+
+.tab-btn {
+  padding: 5px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: var(--shadow-xs);
+}
+
+.tab-btn:not(.active):hover {
+  color: var(--text-1);
+}
+
+/* ================================================================
+   SECTIONS
+   ================================================================ */
+.section {
+  padding: 64px 40px;
+  max-width: 1140px;
+  margin: 0 auto;
+}
+
+.section-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-bottom: 6px;
+}
+
+.section-heading {
+  font-family: 'Newsreader', serif;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  margin-bottom: 8px;
+}
+
+.section-desc {
+  color: var(--text-1);
+  font-size: 15px;
+  max-width: var(--content-max);
+  margin-bottom: 40px;
+  line-height: 1.65;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border-0);
+  margin: 0 40px;
+  max-width: 1060px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.screen-panel {
+  display: none;
+}
+.screen-panel.active {
+  display: block;
+  animation: fadeIn 0.35s ease;
+}
+
+/* ================================================================
+   COLOR PALETTE
+   ================================================================ */
+.palette-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+  margin-bottom: 12px;
+  margin-top: 28px;
+}
+.palette-group-label:first-of-type { margin-top: 0; }
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.swatch {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-0);
+  background: var(--bg-card);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.swatch:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.swatch-color {
+  height: 64px;
+}
+
+.swatch-info {
+  padding: 8px 10px;
+}
+
+.swatch-name {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.swatch-hex {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+/* RRS tier chips */
+.rrs-tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.rrs-tier {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  font-size: 13px;
+  font-weight: 500;
+  transition: transform var(--transition-fast);
+}
+.rrs-tier:hover { transform: translateY(-1px); }
+
+.rrs-tier-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rrs-tier-range {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-2);
+  margin-left: 4px;
+}
+
+/* ================================================================
+   TYPOGRAPHY
+   ================================================================ */
+.type-row {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border-1);
+}
+.type-row:last-child { border-bottom: none; }
+
+.type-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.t-display {
+  font-family: 'Newsreader', serif;
+  font-size: 52px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+.t-h1 {
+  font-family: 'Newsreader', serif;
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.t-h2 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.t-body {
+  font-size: 15px;
+  color: var(--text-1);
+  max-width: 480px;
+  line-height: 1.65;
+}
+
+.t-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+}
+
+/* ================================================================
+   COMPONENTS
+   ================================================================ */
+.comp-group {
+  margin-bottom: 36px;
+}
+
+.comp-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  margin-bottom: 12px;
+}
+
+.comp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  border: none;
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: var(--shadow-xs);
+}
+.btn-primary:hover { background: var(--accent-hover); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-0);
+  border: 1px solid var(--border-0);
+}
+.btn-outline:hover { border-color: var(--text-2); background: var(--bg-1); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-1);
+  border: 1px solid transparent;
+}
+.btn-ghost:hover { color: var(--text-0); background: var(--bg-1); }
+
+.btn-sm { padding: 6px 13px; font-size: 12px; }
+.btn-lg { padding: 12px 24px; font-size: 14px; border-radius: var(--radius-md); }
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.badge-vlow { background: rgba(60,165,122,0.1); color: #3CA57A; }
+.badge-low { background: rgba(91,184,138,0.1); color: #4AA87D; }
+.badge-mod { background: rgba(228,166,59,0.1); color: #C49020; }
+.badge-high { background: rgba(224,115,56,0.1); color: #D06A30; }
+.badge-severe { background: rgba(212,64,64,0.1); color: #D44040; }
+
+/* Inputs */
+.input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  font-size: 14px;
+  color: var(--text-0);
+  outline: none;
+  width: 300px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.input::placeholder { color: var(--text-3); }
+.input:focus { border-color: var(--accent); box-shadow: var(--shadow-ring); }
+
+/* Search bar */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border-0);
+  border-radius: var(--radius-full);
+  padding: 5px 5px 5px 18px;
+  max-width: 480px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.search-bar:focus-within { border-color: var(--accent); box-shadow: var(--shadow-ring); }
+.search-bar input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--text-0);
+}
+.search-bar input::placeholder { color: var(--text-3); }
+.search-bar .search-go {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+.search-bar .search-go:hover { background: var(--accent-hover); transform: scale(1.05); }
+
+/* Score Ring SVG */
+.score-ring-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+}
+
+.score-ring-wrap svg {
+  transform: rotate(-90deg);
+  width: 72px;
+  height: 72px;
+}
+
+.score-ring-wrap .ring-bg {
+  fill: none;
+  stroke: var(--bg-2);
+  stroke-width: 5;
+}
+
+.score-ring-wrap .ring-fill {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 251;
+  transition: stroke-dashoffset 1s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.score-ring-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* ================================================================
+   RISK REPORT CARD (Standalone Component)
+   ================================================================ */
+.rr-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  max-width: 420px;
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
+}
+.rr-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.rr-card-map {
+  height: 100px;
+  background: var(--bg-2);
+  position: relative;
+  overflow: hidden;
+}
+
+.rr-card-map .grid-lines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border-1) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-1) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.5;
+}
+
+.rr-card-map .pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  width: 20px;
+  height: 26px;
+}
+
+.rr-card-body {
+  padding: 18px 20px 20px;
+}
+
+.rr-card-road {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+
+.rr-card-meta {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rr-card-meta .dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.rr-card-score-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-1);
+}
+
+.rr-score-info .rr-score-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+.rr-score-info .rr-score-desc {
+  font-size: 12px;
+  color: var(--text-1);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* Factor bars */
+.factor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.factor-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-1);
+  min-width: 140px;
+}
+
+.factor-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: var(--bg-1);
+  flex-shrink: 0;
+}
+
+.factor-bar-wrap {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-2);
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.factor-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.factor-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-1);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Weight labels */
+.weight-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.weight-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  color: var(--text-2);
+  border: 1px solid var(--border-1);
+}
+
+/* ================================================================
+   MOCKUP FRAME
+   ================================================================ */
+.mockup {
+  background: var(--bg-0);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  margin-bottom: 48px;
+}
+
+/* Nav */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 54px;
+  border-bottom: 1px solid var(--border-1);
+  background: var(--bg-0);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.nav-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--accent);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  font-size: 13px;
+  color: var(--text-1);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+.nav-link:hover { color: var(--text-0); background: var(--bg-1); }
+.nav-link.current { color: var(--text-0); font-weight: 500; }
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Dark mode toggle inside nav */
+.nav-theme-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-0);
+  background: var(--bg-1);
+  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all var(--transition-fast);
+  margin-right: 6px;
+}
+.nav-theme-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+
+/* ================================================================
+   HOME PAGE
+   ================================================================ */
+.hero {
+  text-align: center;
+  padding: 72px 40px 44px;
+  position: relative;
+}
+
+.hero-glow {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 500px;
+  height: 300px;
+  background: radial-gradient(ellipse, var(--accent-muted) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-text);
+  background: var(--accent-muted);
+  border: 1px solid var(--accent);
+  border-color: rgba(10,123,101,0.15);
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  margin-bottom: 20px;
+  letter-spacing: 0.03em;
+}
+
+[data-theme="dark"] .hero-chip {
+  border-color: rgba(52,201,168,0.2);
+}
+
+.hero-chip .pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s ease infinite;
+}
+
+.hero-title {
+  font-family: 'Newsreader', serif;
+  font-size: 54px;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1.07;
+  margin-bottom: 16px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-title .accent { color: var(--accent-text); }
+
+.hero-sub {
+  font-size: 16px;
+  color: var(--text-1);
+  max-width: var(--content-max);
+  margin: 0 auto 32px;
+  line-height: 1.6;
+}
+
+.hero-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border-0);
+  border-radius: var(--radius-full);
+  padding: 6px 6px 6px 20px;
+  width: 500px;
+  max-width: 90%;
+  margin: 0 auto;
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.hero-search:focus-within { border-color: var(--accent); box-shadow: var(--shadow-md), var(--shadow-ring); }
+.hero-search input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--text-0);
+}
+.hero-search input::placeholder { color: var(--text-3); }
+.hero-search .search-go {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+.hero-search .search-go:hover { background: var(--accent-hover); transform: scale(1.05); }
+
+.hero-hints {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.hint-chip {
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.hint-chip:hover {
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: var(--accent-muted);
+}
+
+/* Map section */
+.home-map {
+  margin: 0 24px 32px;
+  border-radius: var(--radius-lg);
+  height: 260px;
+  background: var(--bg-2);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-0);
+}
+
+.map-overlay {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  max-width: 320px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-md);
+  padding: 12px 12px;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-md);
+}
+[data-theme="dark"] .map-overlay {
+  background: rgba(18,18,18,0.62);
+  border-color: rgba(255,255,255,0.12);
+}
+.map-overlay-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-0);
+  margin-bottom: 4px;
+}
+.map-overlay-desc {
+  font-size: 11px;
+  color: var(--text-1);
+  line-height: 1.45;
+}
+
+.home-map .grid-lines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border-1) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-1) 1px, transparent 1px);
+  background-size: 36px 36px;
+  opacity: 0.6;
+}
+
+.home-map .texas-outline {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 220px;
+  height: 200px;
+  opacity: 0.12;
+}
+
+.home-map .risk-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.home-map .risk-dot::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.2;
+  animation: pulse 3s ease infinite;
+}
+
+.map-label {
+  position: absolute;
+  bottom: 14px;
+  left: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-2);
+  background: var(--bg-card);
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-0);
+}
+
+/* Stats */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 0 24px 36px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+
+.stat-val {
+  font-family: 'Newsreader', serif;
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-bottom: 2px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.35;
+}
+
+/* Features row */
+.features-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 0 24px 40px;
+}
+
+.feature-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-md);
+  padding: 22px;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+}
+.feature-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+
+.feature-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.feature-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.feature-desc {
+  font-size: 13px;
+  color: var(--text-1);
+  line-height: 1.5;
+}
+
+/* Footer */
+.footer {
+  border-top: 1px solid var(--border-0);
+  padding: 36px 24px;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 24px;
+}
+
+.footer-brand-desc {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-top: 8px;
+  max-width: 220px;
+}
+
+.footer-col-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin-bottom: 10px;
+}
+
+.footer-link {
+  display: block;
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 2px 0;
+  transition: color var(--transition-fast);
+}
+.footer-link:hover { color: var(--text-0); }
+
+.social-icons {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.social-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border-1);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  color: var(--text-2);
+  transition: transform var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.social-icon:hover {
+  color: var(--text-0);
+  border-color: var(--border-0);
+  transform: translateY(-1px);
+}
+.social-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.footer-data-note {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-1);
+  grid-column: 1 / -1;
+}
+
+/* ================================================================
+   CHAT PAGE
+   ================================================================ */
+.chat-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: 580px;
+}
+
+.chat-side {
+  border-right: 1px solid var(--border-0);
+  background: var(--bg-1);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.chat-side-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.chat-side-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chat-new-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-0);
+  background: var(--bg-card);
+  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition: all var(--transition-fast);
+}
+.chat-new-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+
+.chat-side-search {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-xs);
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text-0);
+  outline: none;
+  width: 100%;
+  margin-bottom: 14px;
+  transition: border-color var(--transition-fast);
+}
+.chat-side-search::placeholder { color: var(--text-3); }
+.chat-side-search:focus { border-color: var(--accent); }
+
+.chat-side-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  margin-bottom: 6px;
+  margin-top: 4px;
+}
+
+.chat-item {
+  padding: 7px 9px;
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 1px;
+}
+.chat-item:hover { background: var(--bg-2); color: var(--text-0); }
+.chat-item.active {
+  background: var(--accent-muted);
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-0);
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Message bubbles */
+.msg {
+  display: flex;
+  gap: 10px;
+  max-width: 88%;
+}
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+.msg-av {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.msg.user .msg-av { background: var(--bg-2); color: var(--text-1); }
+.msg.ai .msg-av { background: var(--accent); color: var(--text-on-accent); }
+
+.msg-body {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.msg.user .msg-body {
+  background: var(--text-0);
+  color: var(--text-inv);
+  border-bottom-right-radius: var(--radius-xs);
+}
+
+.msg.ai .msg-body {
+  background: var(--bg-card);
+  color: var(--text-0);
+  border: 1px solid var(--border-0);
+  border-bottom-left-radius: var(--radius-xs);
+}
+
+/* Inline risk card in chat */
+.chat-risk {
+  background: var(--bg-0);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-top: 8px;
+}
+
+.chat-risk-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.chat-risk-road {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.chat-risk-factors {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.chat-factor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.chat-factor-label {
+  color: var(--text-1);
+  min-width: 132px;
+}
+
+.chat-factor-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg-2);
+  overflow: hidden;
+}
+
+.chat-factor-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.chat-factor-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-2);
+  min-width: 50px;
+  text-align: right;
+}
+
+.chat-advice {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--accent-muted);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--accent-text);
+  display: flex;
+  gap: 6px;
+  line-height: 1.45;
+}
+
+/* Chat input */
+.chat-input-wrap {
+  padding: 12px 24px 18px;
+  border-top: 1px solid var(--border-1);
+}
+
+.chat-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-lg);
+  padding: 8px 8px 8px 16px;
+  transition: border-color var(--transition-fast);
+}
+.chat-input:focus-within { border-color: var(--accent); }
+
+.chat-input input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 13px;
+  color: var(--text-0);
+}
+.chat-input input::placeholder { color: var(--text-3); }
+
+.chat-input-btns {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.ci-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-xs);
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+.ci-btn:hover { background: var(--bg-1); color: var(--text-1); }
+
+.ci-send {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+.ci-send:hover { background: var(--accent-hover); transform: scale(1.04); }
+
+/* ================================================================
+   ABOUT PAGE
+   ================================================================ */
+.about-hero {
+  text-align: center;
+  padding: 64px 40px 48px;
+  position: relative;
+}
+
+.about-hero .hero-glow {
+  top: -40px;
+  height: 200px;
+}
+
+.about-title {
+  font-family: 'Newsreader', serif;
+  font-size: 42px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+}
+
+.about-desc {
+  font-size: 15px;
+  color: var(--text-1);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  line-height: 1.65;
+}
+
+/* Data sources */
+.ds-section {
+  padding: 0 24px 40px;
+}
+
+.ds-section-title {
+  font-family: 'Newsreader', serif;
+  font-size: 24px;
+  font-weight: 400;
+  margin-bottom: 16px;
+  letter-spacing: -0.015em;
+}
+
+.ds-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.ds-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+}
+.ds-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+
+.ds-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-muted);
+  color: var(--accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.ds-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ds-card-desc {
+  font-size: 12px;
+  color: var(--text-1);
+  line-height: 1.5;
+}
+
+/* Scoring Formula */
+.formula-section {
+  padding: 0 24px 40px;
+}
+
+.formula-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-xs);
+}
+
+.formula-display {
+  font-family: 'Newsreader', serif;
+  font-size: 22px;
+  font-weight: 400;
+  text-align: center;
+  letter-spacing: -0.01em;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--bg-1);
+  border-radius: var(--radius-sm);
+}
+
+.formula-display .fw {
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.formula-components {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.fc-card {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-1);
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+.fc-card:hover { border-color: var(--border-0); background: var(--bg-1); }
+
+.fc-weight {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--accent-text);
+  margin-bottom: 2px;
+}
+
+.fc-name {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.fc-range {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+/* Team */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  padding: 0 24px 40px;
+}
+
+.team-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-md);
+  padding: 20px 16px;
+  text-align: center;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+}
+.team-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+
+.team-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  margin: 0 auto 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.team-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.team-role {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+/* Tech stack */
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 0 24px 40px;
+}
+
+.tech-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+}
+.tech-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+
+.tech-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.tech-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tech-desc {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+/* ================================================================
+   RISK REPORT DETAIL PAGE
+   ================================================================ */
+.report-hero {
+  padding: 32px 24px;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.report-score-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  min-width: 200px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.report-score-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 10px;
+}
+
+.report-info {
+  flex: 1;
+}
+
+.report-road-name {
+  font-family: 'Newsreader', serif;
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.report-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 16px;
+}
+
+.report-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.report-summary {
+  font-size: 14px;
+  color: var(--text-1);
+  line-height: 1.6;
+  max-width: var(--content-max);
+}
+
+/* Component breakdown */
+.report-breakdown {
+  padding: 0 24px 32px;
+}
+
+.breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.bd-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+}
+.bd-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+
+.bd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.bd-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bd-weight {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-2);
+  background: var(--bg-1);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.bd-score {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.bd-max {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-2);
+  margin-bottom: 10px;
+}
+
+.bd-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-2);
+  overflow: hidden;
+}
+
+.bd-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.bd-details {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bd-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.bd-detail-label { color: var(--text-2); }
+.bd-detail-val { font-weight: 500; }
+
+/* Historical section */
+.report-history {
+  padding: 0 24px 32px;
+}
+
+.history-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-xs);
+}
+
+.history-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+  margin-top: 16px;
+}
+
+.history-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.history-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  margin-top: auto;
+  transition: height 0.8s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.history-bar-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-3);
+}
+
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
+
+.report-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-0);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: var(--content-max);
+  margin-top: 10px;
+}
+.report-callout .rc-icon {
+  margin-top: 1px;
+  font-size: 14px;
+}
+.report-callout.warn {
+  background: rgba(228,166,59,0.10);
+  border-color: rgba(228,166,59,0.30);
+}
+
+.empty-state {
+  margin-top: 12px;
+  padding: 14px 12px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-0);
+  background: rgba(10,123,101,0.04);
+}
+.empty-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-0);
+  margin-bottom: 4px;
+}
+.empty-desc {
+  font-size: 11px;
+  color: var(--text-1);
+  line-height: 1.45;
+}
+
+.msg.ai.typing .msg-body {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.msg-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(10,123,101,0.08);
+  border: 1px solid rgba(10,123,101,0.18);
+  border-radius: var(--radius-md);
+}
+[data-theme="dark"] .msg-typing {
+  background: rgba(10,123,101,0.10);
+  border-color: rgba(255,255,255,0.12);
+}
+.msg-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.35;
+  animation: typingDot 1.2s infinite ease-in-out;
+}
+.msg-typing span:nth-child(2) { animation-delay: 0.15s; }
+.msg-typing span:nth-child(3) { animation-delay: 0.30s; }
+
+@keyframes typingDot {
+  0%, 100% { transform: translateY(0); opacity: 0.35; }
+  50% { transform: translateY(-3px); opacity: 0.85; }
+}
+@media (max-width: 900px) {
+  .hero-title { font-size: 38px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .features-row { grid-template-columns: 1fr; }
+  .chat-layout { grid-template-columns: 1fr; }
+  .chat-side { display: none; }
+  .formula-components { grid-template-columns: repeat(2, 1fr); }
+  .team-grid { grid-template-columns: repeat(3, 1fr); }
+  .tech-grid { grid-template-columns: repeat(2, 1fr); }
+  .breakdown-grid { grid-template-columns: repeat(2, 1fr); }
+  .ds-grid { grid-template-columns: 1fr; }
+  .footer { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 600px) {
+  .section { padding: 40px 20px; }
+  .topbar { padding: 0 16px; }
+  .tab-nav { overflow-x: auto; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .team-grid { grid-template-columns: repeat(2, 1fr); }
+  .report-hero { flex-direction: column; }
+  .breakdown-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ TOP BAR ============ -->
+<div class="topbar">
+  <div class="topbar-title">Road Report AI</div>
+  <div class="topbar-controls">
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="showScreen('home')">Home</button>
+      <button class="tab-btn" onclick="showScreen('chat')">Chat</button>
+      <button class="tab-btn" onclick="showScreen('report')">Report</button>
+      <button class="tab-btn" onclick="showScreen('about')">About</button>
+    </div>
+    <div class="theme-switch">
+      <button class="active" onclick="setTheme('light')">☀ Light</button>
+      <button onclick="setTheme('dark')">☾ Dark</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     HOME PAGE
+     ================================================================ -->
+<div class="screen-panel active" id="panel-home">
+<div class="section" style="padding-bottom:0;">
+  <div class="section-eyebrow">Screen — Home</div>
+  <div class="section-heading">Landing Page</div>
+</div>
+
+<div class="mockup" style="max-width:1060px; margin:24px auto 0;">
+  <div class="nav">
+    <div class="nav-brand"><div class="nav-icon">RR</div> Road Report AI</div>
+    <div class="nav-links">
+      <a class="nav-link current" href="#">Home</a>
+      <a class="nav-link" href="#">Chat</a>
+      <a class="nav-link" href="#">Report</a>
+      <a class="nav-link" href="#">About</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-theme-btn" onclick="toggleTheme()" title="Toggle dark mode">◐</button>
+      <button class="btn btn-ghost btn-sm">Sign in</button>
+      <button class="btn btn-primary btn-sm">Register</button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-chip"><span class="pulse-dot"></span> Powered by CRIS + TxDOT Data</div>
+    <div class="hero-title">Know your risk<br>before you <span class="accent">drive</span>.</div>
+    <div class="hero-sub">AI-powered crash risk predictions for Texas roads, using historical accident data, real-time weather, and traffic analysis.</div>
+    <div class="hero-search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-3);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input placeholder="Search a road or location..." />
+      <button class="search-go"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+    </div>
+    <div class="hero-hints">
+      <span class="hint-chip">I-35, Austin</span>
+      <span class="hint-chip">US-290, Houston</span>
+      <span class="hint-chip">Loop 1604, San Antonio</span>
+      <span class="hint-chip">SH-130, Georgetown</span>
+    </div>
+  </div>
+
+  <div class="home-map">
+    <div class="grid-lines"></div>
+    <div class="map-overlay">
+      <div class="map-overlay-title">Search to view road risk</div>
+      <div class="map-overlay-desc">Enter a road above to highlight segments and generate a report.</div>
+    </div>
+    <svg class="texas-outline" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="0.8" style="color:var(--text-3)"><path d="M30,8 L32,8 L34,10 L38,10 L40,12 L42,12 L44,14 L48,14 L50,14 L52,14 L54,16 L56,16 L58,18 L60,18 L62,18 L62,22 L64,24 L64,28 L66,30 L66,34 L68,36 L68,40 L66,44 L64,48 L60,52 L56,56 L52,60 L48,64 L44,68 L40,72 L36,76 L32,80 L28,82 L26,84 L24,86 L22,88 L20,88 L18,86 L16,82 L14,78 L14,74 L16,70 L18,66 L18,62 L16,58 L14,54 L12,50 L10,46 L10,42 L12,38 L14,34 L16,30 L18,26 L20,22 L22,18 L24,14 L26,12 L28,10 Z"/></svg>
+    <div class="risk-dot" style="background:#3CA57A; top:28%; left:55%;"></div>
+    <div class="risk-dot" style="background:#E4A63B; top:42%; left:48%;"></div>
+    <div class="risk-dot" style="background:#D44040; top:50%; left:40%;"></div>
+    <div class="risk-dot" style="background:#3CA57A; top:35%; left:62%;"></div>
+    <div class="risk-dot" style="background:#E07338; top:55%; left:52%;"></div>
+    <div class="risk-dot" style="background:#5BB88A; top:38%; left:35%;"></div>
+    <div class="risk-dot" style="background:#E4A63B; top:62%; left:45%;"></div>
+    <div class="risk-dot" style="background:#3CA57A; top:30%; left:70%;"></div>
+    <div class="map-label">254 counties monitored · Interactive risk heatmap</div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-val">254</div><div class="stat-label">Texas counties monitored</div></div>
+    <div class="stat-card"><div class="stat-val">1.2M+</div><div class="stat-label">CRIS crash records analyzed</div></div>
+    <div class="stat-card"><div class="stat-val">&lt; 2s</div><div class="stat-label">Prediction response time</div></div>
+    <div class="stat-card"><div class="stat-val">5</div><div class="stat-label">Risk tier classifications</div></div>
+  </div>
+
+  <div class="features-row">
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-title">Real-Time Analysis</div>
+      <div class="feature-desc">Live weather from weather.gov and traffic data feed into crash risk predictions updated in real time.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🗺</div>
+      <div class="feature-title">Interactive Map</div>
+      <div class="feature-desc">Visual risk heatmap across Texas with county-level drill-down and road segment highlighting.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🤖</div>
+      <div class="feature-title">AI Chat</div>
+      <div class="feature-desc">Ask about any road in natural language. Get structured safety reports with actionable insights.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand">
+      <div class="nav-brand"><div class="nav-icon" style="width:22px;height:22px;font-size:9px;">RR</div> Road Report AI</div>
+      <div class="footer-brand-desc">AI-powered crash risk predictions for Texas roads. Built with data from TxDOT CRIS and weather.gov.</div>
+    </div>
+    <div><div class="footer-col-title">Product</div><a class="footer-link" href="#">Risk Predictions</a><a class="footer-link" href="#">AI Chat</a><a class="footer-link" href="#">Heatmap</a><a class="footer-link" href="#">API</a></div>
+    <div><div class="footer-col-title">Company</div><a class="footer-link" href="#">About</a><a class="footer-link" href="#">Team</a><a class="footer-link" href="#">Tech Stack</a></div>
+    <div><div class="footer-col-title">Resources</div><a class="footer-link" href="#">Documentation</a><a class="footer-link" href="#">GitHub</a><a class="footer-link" href="#">TxDOT CRIS</a></div>
+    <div class="footer-data-note">Data sourced from TxDOT CRIS Query Tool, US Weather.gov API, Google Maps Platform, and Texas Counties Centroid Map. Records from 2016–2024.</div>
+  </div>
+</div>
+</div>
+
+<!-- ================================================================
+     CHAT PAGE
+     ================================================================ -->
+<div class="screen-panel" id="panel-chat">
+<div class="section" style="padding-bottom:0;">
+  <div class="section-eyebrow">Screen — Chat</div>
+  <div class="section-heading">AI Chat</div>
+</div>
+
+<div class="mockup" style="max-width:1060px; margin:24px auto 0;">
+  <div class="nav">
+    <div class="nav-brand"><div class="nav-icon">RR</div> Road Report AI</div>
+    <div class="nav-links">
+      <a class="nav-link" href="#">Home</a>
+      <a class="nav-link current" href="#">Chat</a>
+      <a class="nav-link" href="#">Report</a>
+      <a class="nav-link" href="#">About</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-theme-btn" onclick="toggleTheme()">◐</button>
+      <button class="btn btn-ghost btn-sm">Sign in</button>
+      <button class="btn btn-primary btn-sm">Register</button>
+    </div>
+  </div>
+
+  <div class="chat-layout">
+    <div class="chat-side">
+      <div class="chat-side-head">
+        <div class="chat-side-title">Chats</div>
+        <button class="chat-new-btn">+</button>
+      </div>
+      <input class="chat-side-search" placeholder="Search chats..." />
+      <div class="chat-side-label">Today</div>
+      <div class="chat-item active">I-35 Austin safety check</div>
+      <div class="chat-item">US-290 Houston commute</div>
+      <div class="chat-side-label" style="margin-top:8px;">Yesterday</div>
+      <div class="chat-item">Loop 1604 weekend trip</div>
+      <div class="chat-item">SH-130 Georgetown analysis</div>
+      <div class="chat-side-label" style="margin-top:8px;">Last week</div>
+      <div class="chat-item">Dallas I-635 rush hour</div>
+      <div class="chat-item">Corpus Christi SH-358</div>
+    </div>
+
+    <div class="chat-main">
+      <div class="chat-messages">
+        <div class="msg user">
+          <div class="msg-av">D</div>
+          <div class="msg-body">How safe is I-35 southbound near downtown Austin right now?</div>
+        </div>
+
+        <div class="msg ai">
+          <div class="msg-av">RR</div>
+          <div>
+            <div class="msg-body">
+              Here's the current safety report for I-35 Southbound near downtown Austin:
+
+              <div class="chat-risk">
+                <div class="chat-risk-head">
+                  <span class="chat-risk-road">I-35 S — Exit 233, Austin</span>
+                  <span class="badge badge-mod"><span class="badge-dot"></span> Moderate</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                  <div class="score-ring-wrap" style="width:56px;height:56px;">
+                    <svg viewBox="0 0 88 88" style="width:56px;height:56px;"><circle class="ring-bg" cx="44" cy="44" r="40"/><circle class="ring-fill" cx="44" cy="44" r="40" style="stroke:#E4A63B; stroke-dashoffset:90;" /></svg>
+                    <div class="score-ring-value" style="color:#E4A63B;font-size:18px;">64</div>
+                  </div>
+                  <div>
+                    <div style="font-size:12px;font-weight:600;">Road Risk Score: 64 / 100</div>
+                    <div style="font-size:11px;color:var(--text-2);font-family:'JetBrains Mono',monospace;">RRS = 0.35(10) + 0.30(20) + 0.20(12) + 0.15(12)</div>
+                  </div>
+                </div>
+                <div class="chat-risk-factors">
+                  <div class="chat-factor">
+                    <span class="chat-factor-label">🛣 Road Condition</span>
+                    <div class="chat-factor-bar"><div class="chat-factor-fill" style="width:33%;background:#E4A63B;"></div></div>
+                    <span class="chat-factor-val">10 / 30</span>
+                  </div>
+                  <div class="chat-factor">
+                    <span class="chat-factor-label">📊 Historical</span>
+                    <div class="chat-factor-bar"><div class="chat-factor-fill" style="width:80%;background:#E07338;"></div></div>
+                    <span class="chat-factor-val">20 / 25</span>
+                  </div>
+                  <div class="chat-factor">
+                    <span class="chat-factor-label">☁ Environmental</span>
+                    <div class="chat-factor-bar"><div class="chat-factor-fill" style="width:48%;background:#E4A63B;"></div></div>
+                    <span class="chat-factor-val">12 / 25</span>
+                  </div>
+                  <div class="chat-factor">
+                    <span class="chat-factor-label">🚗 Traffic</span>
+                    <div class="chat-factor-bar"><div class="chat-factor-fill" style="width:60%;background:#E07338;"></div></div>
+                    <span class="chat-factor-val">12 / 20</span>
+                  </div>
+                </div>
+                <div class="chat-advice">
+                  <span>💡</span>
+                  <span>Currently raining with heavy rush-hour traffic. I-35 near downtown Austin has 127 crashes/year in this segment. Consider MoPac (Loop 1) as an alternate, or delay departure 30 min.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="msg user">
+          <div class="msg-av">D</div>
+          <div class="msg-body">What about MoPac northbound? Is it safer right now?</div>
+        </div>
+
+        <div class="msg ai">
+          <div class="msg-av">RR</div>
+          <div>
+            <div class="msg-body">
+              MoPac Loop 1 Northbound is looking better:
+
+              <div class="chat-risk">
+                <div class="chat-risk-head">
+                  <span class="chat-risk-road">Loop 1 (MoPac) N — Austin</span>
+                  <span class="badge badge-low"><span class="badge-dot"></span> Low</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                  <div class="score-ring-wrap" style="width:56px;height:56px;">
+                    <svg viewBox="0 0 88 88" style="width:56px;height:56px;"><circle class="ring-bg" cx="44" cy="44" r="40"/><circle class="ring-fill" cx="44" cy="44" r="40" style="stroke:#5BB88A; stroke-dashoffset:170;" /></svg>
+                    <div class="score-ring-value" style="color:#5BB88A;font-size:18px;">32</div>
+                  </div>
+                  <div>
+                    <div style="font-size:12px;font-weight:600;">Road Risk Score: 32 / 100</div>
+                    <div style="font-size:11px;color:var(--text-2);">Significantly lower risk than I-35 right now</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      
+        <div class="msg ai typing">
+          <div class="msg-av">RR</div>
+          <div class="msg-typing" aria-label="AI is typing">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+</div>
+
+      <div class="chat-input-wrap">
+        <div class="chat-input">
+          <input placeholder="Ask about any road in Texas..." />
+          <div class="chat-input-btns">
+            <button class="ci-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+            <button class="ci-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
+          </div>
+          <button class="ci-send"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ================================================================
+     RISK REPORT DETAIL
+     ================================================================ -->
+<div class="screen-panel" id="panel-report">
+<div class="section" style="padding-bottom:0;">
+  <div class="section-eyebrow">Screen — Risk Report</div>
+  <div class="section-heading">Report View</div>
+</div>
+
+<div class="mockup" style="max-width:1060px; margin:24px auto 0;">
+  <div class="nav">
+    <div class="nav-brand"><div class="nav-icon">RR</div> Road Report AI</div>
+    <div class="nav-links">
+      <a class="nav-link" href="#">Home</a>
+      <a class="nav-link" href="#">Chat</a>
+      <a class="nav-link current" href="#">Report</a>
+      <a class="nav-link" href="#">About</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-theme-btn" onclick="toggleTheme()">◐</button>
+      <button class="btn btn-ghost btn-sm">Sign in</button>
+      <button class="btn btn-primary btn-sm">Register</button>
+    </div>
+  </div>
+
+  <div class="report-hero">
+    <div class="report-score-block">
+      <div class="score-ring-wrap" style="width:88px;height:88px;margin:0 auto;">
+        <svg viewBox="0 0 88 88" style="width:88px;height:88px;"><circle class="ring-bg" cx="44" cy="44" r="40"/><circle class="ring-fill" cx="44" cy="44" r="40" style="stroke:#E4A63B; stroke-dashoffset:90;" /></svg>
+        <div class="score-ring-value" style="color:#E4A63B;font-size:26px;">64</div>
+      </div>
+      <div class="report-score-label">ROAD RISK SCORE</div>
+      <div style="margin-top:6px;"><span class="badge badge-mod"><span class="badge-dot"></span> Moderate Risk</span></div>
+    </div>
+
+    <div class="report-info">
+      <div class="report-road-name">I-35 Southbound, Austin</div>
+      <div class="report-meta">
+        <span class="report-meta-item">📍 Near Exit 233</span>
+        <span class="report-meta-item">📐 30.2672°N, 97.7431°W</span>
+        <span class="report-meta-item">🕐 Updated 3 min ago</span>
+      </div>
+      <div class="report-callout warn">
+        <span class="rc-icon">⚠️</span>
+        <span>Traffic sensors unavailable for this segment — using the nearest TxDOT AADT estimate.</span>
+      </div>
+      <div class="report-summary">
+        This road segment shows <strong>moderate crash risk</strong> driven primarily by a high historical accident rate (80th percentile in Travis County) and current weather conditions. The segment averages 127 reportable crashes per year based on CRIS data from 2016–2024. Current rain and rush-hour traffic are elevating the Environmental and Traffic components.
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 Component Breakdown -->
+  <div class="report-breakdown">
+    <div style="font-size:14px;font-weight:600;margin-bottom:14px;">RRS Component Breakdown</div>
+    <div class="breakdown-grid">
+      <div class="bd-card">
+        <div class="bd-header"><span class="bd-name">🛣 Road Condition (C)</span><span class="bd-weight">× 0.35</span></div>
+        <div class="bd-score" style="color:var(--risk-mod);">10</div>
+        <div class="bd-max">of 30 possible points</div>
+        <div class="bd-bar"><div class="bd-bar-fill" style="width:33%;background:var(--risk-mod);"></div></div>
+        <div class="bd-details">
+          <div class="bd-detail"><span class="bd-detail-label">Construction Zone</span><span class="bd-detail-val">+10</span></div>
+          <div class="bd-detail"><span class="bd-detail-label">Potholes</span><span class="bd-detail-val">—</span></div>
+          <div class="bd-detail"><span class="bd-detail-label">Lane Closures</span><span class="bd-detail-val">—</span></div>
+        </div>
+      </div>
+      <div class="bd-card">
+        <div class="bd-header"><span class="bd-name">📊 Historical (A)</span><span class="bd-weight">× 0.30</span></div>
+        <div class="bd-score" style="color:var(--risk-high);">20</div>
+        <div class="bd-max">of 25 possible points</div>
+        <div class="bd-bar"><div class="bd-bar-fill" style="width:80%;background:var(--risk-high);"></div></div>
+        <div class="bd-details">
+          <div class="bd-detail"><span class="bd-detail-label">Crashes / Year</span><span class="bd-detail-val">127</span></div>
+          <div class="bd-detail"><span class="bd-detail-label">County Percentile</span><span class="bd-detail-val">80th</span></div>
+          <div class="bd-detail"><span class="bd-detail-label">Data Source</span><span class="bd-detail-val">CRIS</span></div>
+        </div>
+      </div>
+      <div class="bd-card">
+        <div class="bd-header"><span class="bd-name">☁ Environmental (E)</span><span class="bd-weight">× 0.20</span></div>
+        <div class="bd-score" style="color:var(--risk-mod);">12</div>
+        <div class="bd-max">of 25 possible points</div>
+        <div class="bd-bar"><div class="bd-bar-fill" style="width:48%;background:var(--risk-mod);"></div></div>
+        <div class="bd-details">
+          <div class="bd-detail"><span class="bd-detail-label">Heavy Rain</span><span class="bd-detail-val">+8</span></div>
+          <div class="bd-detail"><span class="bd-detail-label">Low Lighting</span><span class="bd-detail-val">+4*</span></div>
+          <div class="bd-detail"><span class="bd-detail-label">Source</span><span class="bd-detail-val">weather.gov</span></div>
+        </div>
+      </div>
+      <div class="bd-card">
+        <div class="bd-header"><span class="bd-name">🚗 Traffic (T)</span><span class="bd-weight">× 0.15</span></div>
+        <div class="bd-score" style="color:var(--risk-high);">12</div>
+        <div class="bd-max">of 20 possible points</div>
+        <div class="bd-bar"><div class="bd-bar-fill" style="width:60%;background:var(--risk-high);"></div></div>
+        <div class="bd-details">
+          <div class="bd-detail"><span class="bd-detail-label">High Density</span><span class="bd-detail-val">+8</span></div>
+          <div class="bd-detail"><span class="bd-detail-label">Near Intersection</span><span class="bd-detail-val">+4</span></div>
+          <div class="bd-detail"><span class="bd-detail-label">Source</span><span class="bd-detail-val">TxDOT AADT</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historical Crashes -->
+  <div class="report-history">
+    <div class="history-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:14px;font-weight:600;">Crash History — I-35 S, Exit 233</div>
+          <div style="font-size:12px;color:var(--text-2);">Monthly average from CRIS data, 2020–2024</div>
+        </div>
+        <span class="badge badge-mod"><span class="badge-dot"></span> 127 avg/year</span>
+      </div>
+      <div class="history-bars">
+        <div class="history-bar-col"><div class="history-bar" style="height:60%;background:var(--risk-low);"></div><div class="history-bar-label">Jan</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:55%;background:var(--risk-low);"></div><div class="history-bar-label">Feb</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:70%;background:var(--risk-mod);"></div><div class="history-bar-label">Mar</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:80%;background:var(--risk-mod);"></div><div class="history-bar-label">Apr</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:85%;background:var(--risk-high);"></div><div class="history-bar-label">May</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:90%;background:var(--risk-high);"></div><div class="history-bar-label">Jun</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:75%;background:var(--risk-mod);"></div><div class="history-bar-label">Jul</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:70%;background:var(--risk-mod);"></div><div class="history-bar-label">Aug</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:65%;background:var(--risk-mod);"></div><div class="history-bar-label">Sep</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:95%;background:var(--risk-severe);"></div><div class="history-bar-label">Oct</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:80%;background:var(--risk-high);"></div><div class="history-bar-label">Nov</div></div>
+        <div class="history-bar-col"><div class="history-bar" style="height:100%;background:var(--risk-severe);"></div><div class="history-bar-label">Dec</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="report-history" style="margin-top:12px;">
+    <div class="history-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:14px;font-weight:600;">Live Alerts</div>
+          <div style="font-size:12px;color:var(--text-2);">Road closures, severe weather, and incident reports</div>
+        </div>
+        <span class="badge badge-low"><span class="badge-dot"></span> None</span>
+      </div>
+      <div class="empty-state">
+        <div class="empty-title">No active alerts in this area</div>
+        <div class="empty-desc">If new incidents occur, they’ll appear here as they’re reported.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="footer">
+    <div class="footer-brand">
+      <div class="nav-brand"><div class="nav-icon" style="width:22px;height:22px;font-size:9px;">RR</div> Road Report AI</div>
+      <div class="footer-brand-desc">AI-powered crash risk predictions for Texas roads.</div>
+    </div>
+    <div><div class="footer-col-title">Product</div><a class="footer-link" href="#">Risk Predictions</a><a class="footer-link" href="#">AI Chat</a><a class="footer-link" href="#">Heatmap</a></div>
+    <div><div class="footer-col-title">Company</div><a class="footer-link" href="#">About</a><a class="footer-link" href="#">Team</a></div>
+    <div><div class="footer-col-title">Resources</div><a class="footer-link" href="#">Documentation</a><a class="footer-link" href="#">GitHub</a></div>
+  </div>
+</div>
+</div>
+
+<!-- ================================================================
+     ABOUT PAGE
+     ================================================================ -->
+<div class="screen-panel" id="panel-about">
+<div class="section" style="padding-bottom:0;">
+  <div class="section-eyebrow">Screen — About</div>
+  <div class="section-heading">About</div>
+</div>
+
+<div class="mockup" style="max-width:1060px; margin:24px auto 0;">
+  <div class="nav">
+    <div class="nav-brand"><div class="nav-icon">RR</div> Road Report AI</div>
+    <div class="nav-links">
+      <a class="nav-link" href="#">Home</a>
+      <a class="nav-link" href="#">Chat</a>
+      <a class="nav-link" href="#">Report</a>
+      <a class="nav-link current" href="#">About</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-theme-btn" onclick="toggleTheme()">◐</button>
+      <button class="btn btn-ghost btn-sm">Sign in</button>
+      <button class="btn btn-primary btn-sm">Register</button>
+    </div>
+  </div>
+
+  <div class="about-hero">
+    <div class="hero-glow"></div>
+    <div class="about-title">About Road Report AI</div>
+    <div class="about-desc">We use machine learning to analyze road conditions and historical accident data to predict crash risk levels. The model continuously learns from structured datasets to improve prediction accuracy across all 254 Texas counties.</div>
+  </div>
+
+  <!-- Data Sources -->
+  <div class="ds-section">
+    <div class="ds-section-title">Data Sources</div>
+    <div class="ds-grid">
+      <div class="ds-card">
+        <div class="ds-card-icon">📋</div>
+        <div class="ds-card-title">TxDOT CRIS</div>
+        <div class="ds-card-desc">Crash Investigation System — historical accident records with location, date, time, weather, road conditions. Exportable as CSV, records back to 2016. 50K entries per query.</div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-card-icon">🌤</div>
+        <div class="ds-card-title">Weather.gov API</div>
+        <div class="ds-card-desc">National Weather Service API providing real-time weather alerts and conditions by zone. Free with registration. Feeds the Environmental Risk component.</div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-card-icon">🗺</div>
+        <div class="ds-card-title">Google Maps Platform</div>
+        <div class="ds-card-desc">Reverse geocoding (coordinates → addresses), Roads API for nearest road matching, and RouteTravelAdvisory for real-time traffic data.</div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-card-icon">🚗</div>
+        <div class="ds-card-title">TxDOT AADT</div>
+        <div class="ds-card-desc">Annual Average Daily Traffic counts — road-level traffic volume data. Includes the Top 100 most congested Texas roadways dataset.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formula -->
+  <div class="formula-section">
+    <div class="ds-section-title">Road Risk Score Formula</div>
+    <div class="formula-box">
+      <div class="formula-display">RRS = <span class="fw">0.35</span>C + <span class="fw">0.30</span>A + <span class="fw">0.20</span>E + <span class="fw">0.15</span>T</div>
+      <div class="formula-components">
+        <div class="fc-card">
+          <div class="fc-weight">35%</div>
+          <div class="fc-name">Road Condition (C)</div>
+          <div class="fc-range">0–30 points</div>
+        </div>
+        <div class="fc-card">
+          <div class="fc-weight">30%</div>
+          <div class="fc-name">Historical (A)</div>
+          <div class="fc-range">0–25 points</div>
+        </div>
+        <div class="fc-card">
+          <div class="fc-weight">20%</div>
+          <div class="fc-name">Environmental (E)</div>
+          <div class="fc-range">0–25 points</div>
+        </div>
+        <div class="fc-card">
+          <div class="fc-weight">15%</div>
+          <div class="fc-name">Traffic (T)</div>
+          <div class="fc-range">0–20 points</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech Stack -->
+  <div class="ds-section">
+    <div class="ds-section-title">Tech Stack</div>
+    <div class="tech-grid">
+      <div class="tech-card"><div class="tech-icon">⚡</div><div><div class="tech-name">Vue.js + Vite</div><div class="tech-desc">Frontend framework</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🎨</div><div><div class="tech-name">TypeScript</div><div class="tech-desc">Type-safe frontend</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🐍</div><div><div class="tech-name">FastAPI</div><div class="tech-desc">Backend REST API</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🐘</div><div><div class="tech-name">PostgreSQL</div><div class="tech-desc">Database</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🔥</div><div><div class="tech-name">PyTorch</div><div class="tech-desc">ML model training</div></div></div>
+      <div class="tech-card"><div class="tech-icon">🐼</div><div><div class="tech-name">Pandas + NumPy</div><div class="tech-desc">Data processing</div></div></div>
+    </div>
+  </div>
+
+  <!-- Team -->
+  <div class="ds-section">
+    <div class="ds-section-title">The Team</div>
+  </div>
+  <div class="team-grid">
+    <div class="team-card"><div class="team-avatar">DK</div><div class="team-name">Dennis Keithly</div></div>
+    <div class="team-card"><div class="team-avatar">BS</div><div class="team-name">Ben Stidham</div></div>
+    <div class="team-card"><div class="team-avatar">JR</div><div class="team-name">Jose Rodas</div></div>
+    <div class="team-card"><div class="team-avatar">CC</div><div class="team-name">Christopher Chaiban</div></div>
+    <div class="team-card"><div class="team-avatar">KO</div><div class="team-name">Kade O'Bar</div></div>
+  </div>
+
+    <div class="footer">
+    <div class="footer-brand">
+      <div class="nav-brand"><div class="nav-icon" style="width:22px;height:22px;font-size:9px;">RR</div> Road Report AI</div>
+      <div class="footer-brand-desc">AI-powered crash risk predictions for Texas roads.</div>
+
+      <div class="social-icons" aria-label="Road Report AI social links">
+        <a class="social-icon" href="#" aria-label="Road Report AI on X" title="X" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2H22l-6.8 7.8L23 22h-6.7l-5.2-6.8L4.9 22H2l7.3-8.4L1 2h6.9l4.7 6.1L18.9 2Zm-1.2 18h1.7L6.2 4H4.4l13.3 16Z"/></svg>
+        </a>
+        <a class="social-icon" href="#" aria-label="Road Report AI on YouTube" title="YouTube" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.7 4.6 12 4.6 12 4.6s-5.7 0-7.5.5A3 3 0 0 0 2.4 7.2 31.2 31.2 0 0 0 2 12a31.2 31.2 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.8.5 7.5.5 7.5.5s5.7 0 7.5-.5a3 3 0 0 0 2.1-2.1A31.2 31.2 0 0 0 22 12a31.2 31.2 0 0 0-.4-4.8ZM10.2 15.3V8.7L16 12l-5.8 3.3Z"/></svg>
+        </a>
+        <a class="social-icon" href="#" aria-label="Road Report AI on Instagram" title="Instagram" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.5 2h9A5.5 5.5 0 0 1 22 7.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2Zm0 2A3.5 3.5 0 0 0 4 7.5v9A3.5 3.5 0 0 0 7.5 20h9a3.5 3.5 0 0 0 3.5-3.5v-9A3.5 3.5 0 0 0 16.5 4h-9Zm10.2 1.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <div>
+      <div class="footer-col-title">Project</div>
+      <a class="footer-link" href="#">Overview</a>
+      <a class="footer-link" href="#">Data Sources</a>
+      <a class="footer-link" href="#">RRS Method</a>
+      <a class="footer-link" href="#">Team</a>
+    </div>
+
+    <div>
+      <div class="footer-col-title">Explore</div>
+      <a class="footer-link" href="#">Home</a>
+      <a class="footer-link" href="#">Chat</a>
+      <a class="footer-link" href="#">Report</a>
+      <a class="footer-link" href="#">About</a>
+    </div>
+
+    <div>
+      <div class="footer-col-title">Resources</div>
+      <a class="footer-link" href="#">Documentation</a>
+      <a class="footer-link" href="#">GitHub</a>
+      <a class="footer-link" href="#">TxDOT CRIS</a>
+      <a class="footer-link" href="#">Weather.gov</a>
+    </div>
+
+    <div class="footer-data-note">Risk scores are estimates derived from historical crash data and current conditions. Data sourced from TxDOT CRIS Query Tool, US Weather.gov API, Google Maps Platform, and TxDOT AADT.</div>
+  </div>
+</div>
+</div>
+
+<div style="height:60px;"></div>
+
+<!-- ============ JS ============ -->
+<script>
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.querySelectorAll('.theme-switch button').forEach(b => {
+    b.classList.toggle('active', b.textContent.includes(t === 'dark' ? 'Dark' : 'Light'));
+  });
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  setTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase().includes(id));
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Match system preference on load
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  setTheme('dark');
+}
+</script>
+
+</body>
+</html>
