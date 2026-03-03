@@ -1,10 +1,10 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
-import './assets/base.css'
+
+// Global styles: Tailwind directives + design tokens + base styles
+import './main.css'
 
 const app = createApp(App)
-
 app.use(router)
-
 app.mount('#app')

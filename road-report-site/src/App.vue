@@ -1,14 +1,18 @@
 <script setup lang="ts">
-  import Home from "@/views/Home.vue";
-  import TitleBar from "@/components/TitleBar.vue";
-  import { RouterView } from "vue-router";
+import AppNav from '@/components/layout/AppNav.vue'
+import AppFooter from '@/components/layout/AppFooter.vue'
+import { useTheme } from '@/composables/useTheme'
+
+// Initialize theme on app mount
+useTheme()
 </script>
 
 <template>
-  <TitleBar/>
-  <div class="p-8">
-    <RouterView/>
+  <div class="min-h-screen flex flex-col bg-bg-0 text-text-0 transition-colors duration-slow">
+    <AppNav />
+    <main class="flex-1">
+      <RouterView />
+    </main>
+    <AppFooter />
   </div>
 </template>
-
-<style scoped></style>
