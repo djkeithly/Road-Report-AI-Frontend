@@ -10,6 +10,22 @@
  * - FeatureCards (3 feature cards)
  */
 
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+const search = ref('')
+
+const goToReport = () => {
+  const q = search.value.trim()
+  router.push({ path: '/report', query: q ? { q } : {} })
+}
+
+const useHint = (hint: string) => {
+  search.value = hint
+  goToReport()
+}
+
 const stats = [
   { value: '254', label: 'Texas counties monitored' },
   { value: '1.2M+', label: 'CRIS crash records analyzed' },
@@ -35,6 +51,7 @@ const features = [
   },
 ]
 
+// You can swap these to Plano examples later (US-75, DNT, SH-121, etc.)
 const hints = ['I-35, Austin', 'US-290, Houston', 'Loop 1604, San Antonio', 'SH-130, Georgetown']
 </script>
 
@@ -64,13 +81,13 @@ const hints = ['I-35, Austin', 'US-290, Houston', 'Loop 1604, San Antonio', 'SH-
         class="font-serif text-4xl sm:text-5xl font-normal tracking-tight
                leading-[1.07] mb-4 max-w-[600px] mx-auto"
       >
-        Know your risk<br>before you <span class="text-accent-text">drive</span>.
+        Know your test<br />before you <span class="text-accent-text">drive</span>.
       </h1>
 
       <!-- Subhead -->
       <p class="text-base text-text-1 max-w-content mx-auto mb-8 leading-relaxed">
-        AI-powered crash risk predictions for Texas roads, using historical accident data,
-        real-time weather, and traffic analysis.
+        AI-powered crash risk predictions for Texas roads, using historical accident data, real-time weather, and
+        traffic analysis.
       </p>
 
       <!-- Search bar -->
@@ -80,24 +97,28 @@ const hints = ['I-35, Austin', 'US-290, Houston', 'Loop 1604, San Antonio', 'SH-
                shadow-md transition-all duration-fast
                focus-within:border-accent focus-within:shadow-ring"
       >
-        <svg class="w-4 h-4 text-text-3 flex-shrink-0" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2">
+        <svg class="w-4 h-4 text-text-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
         </svg>
+
         <input
+          v-model="search"
+          @keydown.enter="goToReport"
           type="text"
           placeholder="Search a road or location..."
           class="flex-1 bg-transparent border-none outline-none text-[15px]
                  text-text-0 placeholder:text-text-3"
         />
+
         <button
+          @click="goToReport"
           class="w-10 h-10 rounded-full bg-accent text-text-on-accent
                  flex items-center justify-center flex-shrink-0
                  hover:bg-accent-hover hover:scale-105 transition-all duration-fast"
+          title="Generate report"
         >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2.5">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </button>
@@ -108,6 +129,7 @@ const hints = ['I-35, Austin', 'US-290, Houston', 'Loop 1604, San Antonio', 'SH-
         <button
           v-for="hint in hints"
           :key="hint"
+          @click="useHint(hint)"
           class="text-xs text-text-2 bg-bg-1 border border-border-1
                  px-2.5 py-1 rounded-full
                  hover:text-accent-text hover:border-accent hover:bg-accent-muted
@@ -132,9 +154,7 @@ const hints = ['I-35, Austin', 'US-290, Houston', 'Loop 1604, San Antonio', 'SH-
             linear-gradient(90deg, var(--border-1) 1px, transparent 1px);
             background-size: 36px 36px;"
         />
-        <p class="relative font-mono text-xs text-text-2">
-          Google Maps Integration · Phase 3
-        </p>
+        <p class="relative font-mono text-xs text-text-2">Google Maps Integration · Phase 3</p>
       </div>
     </section>
 
@@ -149,9 +169,7 @@ const hints = ['I-35, Austin', 'US-290, Houston', 'Loop 1604, San Antonio', 'SH-
                  animate-fade-up"
           :class="`delay-${i + 1}`"
         >
-          <div class="font-serif text-[28px] font-normal tracking-tight mb-0.5">
-            {{ stat.value }}
-          </div>
+          <div class="font-serif text-[28px] font-normal tracking-tight mb-0.5">{{ stat.value }}</div>
           <div class="text-xs text-text-2">{{ stat.label }}</div>
         </div>
       </div>
