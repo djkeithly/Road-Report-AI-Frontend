@@ -1,230 +1,178 @@
 <script setup lang="ts">
 /**
- * ReportView — Risk Report Detail
- * Wireframe: Screen 3 (Report)
+ * ReportView — AI Risk Report (demo-ready)
  *
- * Shows: score ring, road info, 4-component breakdown, crash history, alerts
- * TODO: Make dynamic via route param /report/:roadId + API call
+ * Reads query param: /report?q=...
+ * Shows mock AI classification output (tier + confidence + explanation)
+ * Later: replace mockPredict() with backend API call.
  */
-import ScoreRing from '@/components/ScoreRing.vue'
+
+import { computed, ref, watchEffect } from 'vue'
+import { useRoute } from 'vue-router'
 import RiskBadge from '@/components/RiskBadge.vue'
 
-// Placeholder data — will come from API in Phase 3
-const report = {
-  road: 'I-35 Southbound, Austin',
-  segment: 'Near Exit 233',
-  coords: '30.2672°N, 97.7431°W',
-  updatedAt: '3 min ago',
-  score: 64,
-  tier: 'moderate' as const,
-  warning: 'Traffic sensors unavailable for this segment — using the nearest TxDOT AADT estimate.',
-  summary:
-    'This road segment shows moderate crash risk driven primarily by a high historical accident rate (80th percentile in Travis County) and current weather conditions. The segment averages 127 reportable crashes per year based on CRIS data from 2016–2024. Current rain and rush-hour traffic are elevating the Environmental and Traffic components.',
+type RiskTier = 'low' | 'moderate' | 'high' | 'severe'
+
+type AiReport = {
+  road: string
+  updatedAt: string
+  tier: RiskTier
+  confidence: number // 0-100
+  summary: string
+  factors: string[]
 }
 
-const components = [
-  {
-    icon: '🛣',
-    name: 'Road Condition (C)',
-    weight: '× 0.35',
-    score: 10,
-    max: 30,
-    pct: 33,
-    color: 'var(--risk-mod)',
-    details: [
-      { label: 'Construction Zone', value: '+10' },
-      { label: 'Potholes', value: '—' },
-      { label: 'Lane Closures', value: '—' },
-    ],
-  },
-  {
-    icon: '📊',
-    name: 'Historical (A)',
-    weight: '× 0.30',
-    score: 20,
-    max: 25,
-    pct: 80,
-    color: 'var(--risk-high)',
-    details: [
-      { label: 'Crashes / Year', value: '127' },
-      { label: 'County Percentile', value: '80th' },
-      { label: 'Data Source', value: 'CRIS' },
-    ],
-  },
-  {
-    icon: '☁',
-    name: 'Environmental (E)',
-    weight: '× 0.20',
-    score: 12,
-    max: 25,
-    pct: 48,
-    color: 'var(--risk-mod)',
-    details: [
-      { label: 'Heavy Rain', value: '+8' },
-      { label: 'Low Lighting', value: '+4' },
-      { label: 'Source', value: 'weather.gov' },
-    ],
-  },
-  {
-    icon: '🚗',
-    name: 'Traffic (T)',
-    weight: '× 0.15',
-    score: 12,
-    max: 20,
-    pct: 60,
-    color: 'var(--risk-high)',
-    details: [
-      { label: 'High Density', value: '+8' },
-      { label: 'Near Intersection', value: '+4' },
-      { label: 'Source', value: 'TxDOT AADT' },
-    ],
-  },
-]
+const route = useRoute()
+const q = computed(() => (route.query.q as string | undefined)?.trim() ?? '')
 
-const crashHistory = [
-  { month: 'Jan', pct: 60 },
-  { month: 'Feb', pct: 55 },
-  { month: 'Mar', pct: 70 },
-  { month: 'Apr', pct: 80 },
-  { month: 'May', pct: 85 },
-  { month: 'Jun', pct: 90 },
-  { month: 'Jul', pct: 75 },
-  { month: 'Aug', pct: 70 },
-  { month: 'Sep', pct: 65 },
-  { month: 'Oct', pct: 95 },
-  { month: 'Nov', pct: 80 },
-  { month: 'Dec', pct: 100 },
-]
+const loading = ref(false)
+const error = ref<string | null>(null)
+const report = ref<AiReport | null>(null)
+
+const tierToLabel: Record<RiskTier, string> = {
+  low: 'Low Risk',
+  moderate: 'Moderate Risk',
+  high: 'High Risk',
+  severe: 'Severe Risk',
+}
+
+// Mock AI prediction (replace later with real backend call)
+async function mockPredict(roadQuery: string): Promise<AiReport> {
+  await new Promise((r) => setTimeout(r, 650))
+
+  // deterministic-ish based on input so demos are repeatable
+  let hash = 0
+  for (let i = 0; i < roadQuery.length; i++) hash = (hash * 31 + roadQuery.charCodeAt(i)) >>> 0
+  const tiers: RiskTier[] = ['low', 'moderate', 'high', 'severe']
+  const tier = tiers[hash % tiers.length]
+  const confidence = Math.min(95, 70 + (hash % 26)) // 70–95
+
+  const pool = [
+    'Historical crash patterns in similar road segments',
+    'Traffic exposure proxy (AADT-like feature)',
+    'Weather sensitivity proxy (rain/ice conditions)',
+    'Intersection density and turning complexity',
+    'Speed environment and roadway class',
+    'Low-light / nighttime risk proxy',
+    'Work-zone likelihood proxy',
+  ]
+  const factors = [pool[hash % pool.length], pool[(hash + 2) % pool.length], pool[(hash + 4) % pool.length]]
+
+  const summary: Record<RiskTier, string> = {
+    low: 'Model indicates relatively low crash likelihood under typical conditions.',
+    moderate: 'Model indicates moderate risk; conditions and exposure may elevate crash likelihood.',
+    high: 'Model indicates elevated crash likelihood; drive with caution and stay alert.',
+    severe: 'Model indicates very high crash likelihood; avoid if possible or use extreme caution.',
+  }
+
+  return {
+    road: roadQuery,
+    updatedAt: 'Just now',
+    tier,
+    confidence,
+    summary: summary[tier],
+    factors,
+  }
+}
+
+async function run() {
+  error.value = null
+  report.value = null
+
+  if (!q.value) {
+    error.value = 'No road provided. Go back to Home and search a road or location.'
+    return
+  }
+
+  loading.value = true
+  try {
+    // later: replace with real API call to backend
+    report.value = await mockPredict(q.value)
+  } catch {
+    error.value = 'Failed to generate report. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+watchEffect(() => {
+  if (q.value) run()
+})
 </script>
 
 <template>
   <div class="animate-fade-in max-w-layout mx-auto px-6 pt-6 pb-10">
+    <h1 class="font-serif text-2xl font-normal tracking-tight mb-2">Risk Report</h1>
 
-    <!-- ======== HERO: SCORE + ROAD INFO ======== -->
-    <section class="flex flex-col sm:flex-row gap-5 mb-6">
-      <!-- Score block -->
+    <div class="text-text-2 font-mono text-[11px] mb-4">
+      Query: <span class="text-text-0">{{ q || '[none]' }}</span>
+    </div>
+
+    <div v-if="error" class="bg-bg-card border border-border-0 rounded-md p-4 text-sm text-red-500 mb-4">
+      {{ error }}
+    </div>
+
+    <div v-if="loading" class="bg-bg-card border border-border-0 rounded-md p-4 mb-4">
+      <div class="flex items-center gap-3">
+        <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+        <div class="text-sm text-text-1">Generating AI prediction…</div>
+      </div>
+    </div>
+
+    <div v-if="report" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <!-- Main card -->
+      <div class="bg-bg-card border border-border-0 rounded-lg p-5 shadow-sm">
+        <div class="text-xs font-mono text-text-2 mb-2">PREDICTION</div>
+
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-serif text-xl">{{ tierToLabel[report.tier] }}</div>
+          <RiskBadge :tier="report.tier" :label="tierToLabel[report.tier]" />
+        </div>
+
+        <div class="text-sm text-text-1 mb-4">{{ report.summary }}</div>
+
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-text-2 font-mono text-[10px]">CONFIDENCE</span>
+          <span class="font-semibold">{{ report.confidence }}%</span>
+        </div>
+
+        <div class="mt-3 text-xs text-text-2">
+          Updated: <span class="font-mono">{{ report.updatedAt }}</span>
+        </div>
+      </div>
+
+      <!-- Factors -->
+      <div class="bg-bg-card border border-border-0 rounded-lg p-5 shadow-sm lg:col-span-2">
+        <div class="text-xs font-mono text-text-2 mb-3">MODEL INSIGHTS (PLACEHOLDERS)</div>
+
+        <ul class="space-y-2 text-[13px] text-text-1">
+          <li v-for="f in report.factors" :key="f" class="flex gap-2">
+            <span class="mt-2 w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0"></span>
+            <span>{{ f }}</span>
+          </li>
+        </ul>
+
+        <div class="mt-5 p-4 rounded-md bg-bg-2 border border-border-1 text-xs text-text-2">
+          Note: This page is using a mock AI prediction for demo purposes. It will be replaced with a real backend
+          inference API.
+        </div>
+      </div>
+    </div>
+
+    <!-- Map placeholder -->
+    <section class="mt-6">
       <div
-        class="bg-bg-card border border-border-0 rounded-lg p-5 text-center
-               shadow-sm flex-shrink-0 sm:min-w-[180px]"
+        class="mx-auto h-[260px] rounded-lg bg-bg-2 border border-border-0
+               relative overflow-hidden flex items-center justify-center"
       >
-        <ScoreRing :score="report.score" :tier="report.tier" size="lg" class="mx-auto" />
-        <div class="font-mono text-[9px] font-semibold uppercase tracking-widest text-text-2 mt-2">
-          ROAD RISK SCORE
-        </div>
-        <div class="mt-1.5">
-          <RiskBadge :tier="report.tier" label="Moderate Risk" />
-        </div>
-      </div>
-
-      <!-- Road info -->
-      <div class="flex-1">
-        <h1 class="font-serif text-2xl font-normal tracking-tight mb-1">
-          {{ report.road }}
-        </h1>
-        <div class="flex flex-wrap gap-3 text-text-2 font-mono text-[11px] mb-3">
-          <span>📍 {{ report.segment }}</span>
-          <span>📐 {{ report.coords }}</span>
-          <span>🕐 Updated {{ report.updatedAt }}</span>
-        </div>
-
-        <!-- Warning callout -->
         <div
-          class="px-3 py-2 rounded-md border border-[rgba(228,166,59,0.3)]
-                 bg-[rgba(228,166,59,0.06)] text-[12px] text-text-1 mb-3"
-        >
-          ⚠️ {{ report.warning }}
-        </div>
-
-        <!-- Summary -->
-        <p class="text-[13px] text-text-1 leading-relaxed max-w-content">
-          {{ report.summary }}
-        </p>
-      </div>
-    </section>
-
-    <!-- ======== 4-COMPONENT BREAKDOWN ======== -->
-    <section class="mb-6">
-      <h2 class="text-sm font-semibold mb-3">RRS Component Breakdown</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div
-          v-for="c in components"
-          :key="c.name"
-          class="bg-bg-card border border-border-0 rounded-md p-4 shadow-xs
-                 hover:-translate-y-0.5 hover:shadow-sm transition-all duration-fast"
-        >
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-xs font-semibold">{{ c.icon }} {{ c.name }}</span>
-            <span class="font-mono text-[9px] text-text-2 bg-bg-1 px-1.5 py-0.5 rounded-full">
-              {{ c.weight }}
-            </span>
-          </div>
-          <div class="text-2xl font-bold mb-0.5" :style="{ color: c.color }">
-            {{ c.score }}
-          </div>
-          <div class="font-mono text-[9px] text-text-2 mb-2">of {{ c.max }} possible points</div>
-          <div class="h-[5px] rounded-full bg-bg-2 overflow-hidden mb-3">
-            <div
-              class="h-full rounded-full transition-all duration-[800ms]"
-              :style="{ width: c.pct + '%', background: c.color }"
-            />
-          </div>
-          <div class="space-y-1">
-            <div
-              v-for="d in c.details"
-              :key="d.label"
-              class="flex justify-between font-mono text-[9px]"
-            >
-              <span class="text-text-2">{{ d.label }}</span>
-              <span class="font-semibold text-text-1">{{ d.value }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ======== CRASH HISTORY ======== -->
-    <section class="mb-6">
-      <div class="bg-bg-card border border-border-0 rounded-md p-5 shadow-xs">
-        <div class="flex justify-between items-center mb-4">
-          <div>
-            <div class="text-sm font-semibold">Crash History — I-35 S, Exit 233</div>
-            <div class="text-xs text-text-2">Monthly average from CRIS data, 2020–2024</div>
-          </div>
-          <RiskBadge tier="moderate" label="127 avg/yr" />
-        </div>
-        <div class="flex items-end gap-1.5 h-[100px]">
-          <div
-            v-for="bar in crashHistory"
-            :key="bar.month"
-            class="flex-1 flex flex-col items-center gap-1 h-full justify-end"
-          >
-            <div
-              class="w-full rounded-t bg-text-3 transition-all duration-[800ms]"
-              :style="{ height: bar.pct + '%' }"
-            />
-            <span class="font-mono text-[8px] text-text-3">{{ bar.month }}</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ======== LIVE ALERTS ======== -->
-    <section>
-      <div class="bg-bg-card border border-border-0 rounded-md p-5 shadow-xs">
-        <div class="flex justify-between items-center mb-3">
-          <div>
-            <div class="text-sm font-semibold">Live Alerts</div>
-            <div class="text-xs text-text-2">Road closures, severe weather, and incident reports</div>
-          </div>
-          <RiskBadge tier="low" label="None" />
-        </div>
-        <div
-          class="border border-dashed border-border-0 rounded-md p-4 text-center
-                 bg-accent-muted/30"
-        >
-          <div class="text-xs font-semibold mb-0.5">No active alerts in this area</div>
-          <div class="text-[11px] text-text-2">If new incidents occur, they'll appear here as they're reported.</div>
-        </div>
+          class="absolute inset-0 opacity-60"
+          style="background-image:
+            linear-gradient(var(--border-1) 1px, transparent 1px),
+            linear-gradient(90deg, var(--border-1) 1px, transparent 1px);
+            background-size: 36px 36px;"
+        />
+        <p class="relative font-mono text-xs text-text-2">Google Maps + Risk Overlay · Phase 3</p>
       </div>
     </section>
   </div>
