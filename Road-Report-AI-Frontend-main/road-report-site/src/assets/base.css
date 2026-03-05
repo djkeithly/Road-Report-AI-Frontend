@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import 'tailwindcss';
+
+/* Global and semantic color variables */
+:root {
+  /* Base Color Palette */
+  --bg: #24283b;
+  --bg_dark: #1f2335;
+  --bg_dark1: #1b1e2d;
+  --bg_highlight: #292e42;
+  --blue: #7aa2f7;
+  --blue0: #3d59a1;
+  --blue1: #2ac3de;
+  --blue2: #0db9d7;
+  --blue5: #89ddff;
+  --blue6: #b4f9f8;
+  --blue7: #394b70;
+  --comment: #565f89;
+  --cyan: #7dcfff;
+  --dark3: #545c7e;
+  --dark5: #737aa2;
+  --fg: #c0caf5;
+  --fg_dark: #a9b1d6;
+  --fg_gutter: #3b4261;
+  --green: #9ece6a;
+  --green1: #73daca;
+  --green2: #41a6b5;
+  --magenta: #bb9af7;
+  --magenta2: #ff007c;
+  --orange: #ff9e64;
+  --purple: #9d7cd8;
+  --red: #f7768e;
+  --red1: #db4b4b;
+  --teal: #1abc9c;
+  --terminal_black: #414868;
+  --yellow: #e0af68;
+
+  /* Semantic Aliases */
+  --color-background: var(--bg_dark1);
+  --color-background-soft: var(--bg_dark);
+  --color-background-mute: var(--bg_dark1);
+
+  --color-border: var(--blue);
+  --color-border-hover: var(--blue2);
+
+  --color-heading: var(--magenta2);
+  --color-text: var(--magenta);
+
+  --section-gap: 160px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* You can keep this to potentially override for dark mode, */
+    /* but your base styles are already dark. */
+    --color-background: var(--bg_dark1);
+    --color-background-soft: var(--bg_dark);
+    --color-background-mute: var(--bg_dark1);
+
+    --color-border: var(--blue);
+    --color-border-hover: var(--blue2);
+
+    --color-heading: var(--magenta2);
+    --color-text: var(--blue);
+  }
+}
+
+.main-font {
+  font-family: 'Ubuntu Mono', monospace;
+  font-weight: 400;
+  font-style: normal;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  font-weight: normal;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  background: var(--color-background); /* This will now work correctly */
+  transition:
+    color 0.5s,
+    background-color 0.5s;
+  line-height: 1.6;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif;
+  font-size: 15px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
