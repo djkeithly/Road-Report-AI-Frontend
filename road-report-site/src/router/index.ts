@@ -6,7 +6,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('@/views/HomeView.vue'),
+      component: () => import('@/components/MapDisplay.vue'),
       meta: { title: 'Road Report AI' },
     },
     {
@@ -35,7 +35,9 @@ const router = createRouter({
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/',
+      name: 'home',
+      component: () => import('@/components/MapDisplay.vue'),
+      meta: { title: 'Road Report AI' },
     },
   ],
   scrollBehavior(_to, _from, savedPosition) {

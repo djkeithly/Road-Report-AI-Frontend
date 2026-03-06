@@ -17,7 +17,9 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.0",
+    "geojson": "^0.5.0",
     "vue": "^3.5.28",
+    "vue-maplibre-gl": "^5.6.1",
     "vue-router": "^5.0.2"
   },
   "devDependencies": {
