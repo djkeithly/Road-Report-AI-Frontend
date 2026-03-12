@@ -1,5 +1,5 @@
 /* ================================================================
-   ROAD REPORT AI — DESIGN TOKENS
+   ROAD REPORT AI â€” DESIGN TOKENS
    Ported from the design prototype (Road_Report-Design.html)
    ================================================================ */
 
@@ -86,14 +86,14 @@
   --accent-text: #34C9A8;
 
   --text-0: #E8E6E1;
-  --text-1: #908E8A;
-  --text-2: #5E5D59;
-  --text-3: #3D3C3A;
+  --text-1: #C2BEB8;
+  --text-2: #A6A199;
+  --text-3: #8A857D;
   --text-inv: #0E0E0D;
   --text-on-accent: #0E0E0D;
 
-  --border-0: #292826;
-  --border-1: #1F1F1D;
+  --border-0: #343330;
+  --border-1: #2A2926;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.15);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15);
@@ -102,3 +102,4 @@
 
   --grain-opacity: 0.04;
 }
+
