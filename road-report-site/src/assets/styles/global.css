@@ -1,15 +1,24 @@
 /* ================================================================
-   ROAD REPORT AI — GLOBAL STYLES
+   ROAD REPORT AI - GLOBAL STYLES
    Import after Tailwind directives in main.css
    ================================================================ */
 
-/* ---- Font imports ---- */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=JetBrains+Mono:wght@400;500;600&display=swap');
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
-/* ---- Base ---- */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'DM Sans', -apple-system, sans-serif;
-  background: var(--bg-0);
+  background:
+    radial-gradient(circle at 20% 12%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 30%),
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--risk-mod) 12%, transparent) 0%, transparent 26%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-1) 62%, transparent), var(--bg-0) 18%, var(--bg-0) 100%);
   color: var(--text-0);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -17,7 +26,22 @@ body {
   overflow-x: hidden;
 }
 
-/* Grain texture overlay */
+#app {
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--accent) 8%, transparent), transparent 44%),
+    radial-gradient(circle at bottom right, color-mix(in srgb, var(--risk-high) 8%, transparent), transparent 30%);
+  pointer-events: none;
+  opacity: 0.9;
+  z-index: -1;
+}
+
 body::after {
   content: '';
   position: fixed;
@@ -28,13 +52,32 @@ body::after {
   z-index: 9999;
 }
 
-/* Selection highlight */
 ::selection {
   background: var(--accent);
   color: var(--text-on-accent);
 }
 
-/* ---- Utility animations ---- */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
@@ -58,10 +101,20 @@ body::after {
   animation: fadeIn 0.5s ease both;
 }
 
-/* Stagger delays */
 .delay-1 { animation-delay: 0.08s; }
 .delay-2 { animation-delay: 0.16s; }
 .delay-3 { animation-delay: 0.24s; }
 .delay-4 { animation-delay: 0.32s; }
 .delay-5 { animation-delay: 0.40s; }
 .delay-6 { animation-delay: 0.48s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

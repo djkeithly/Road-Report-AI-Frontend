@@ -3,9 +3,14 @@ import { ref, watchEffect } from 'vue'
 export type Theme = 'light' | 'dark'
 
 const theme = ref<Theme>('light')
+let initialized = false
 
-/** Initialize theme from system preference */
 function initTheme() {
+  if (initialized || typeof window === 'undefined') {
+    return
+  }
+
+  initialized = true
   const stored = localStorage.getItem('rr-theme') as Theme | null
   if (stored) {
     theme.value = stored
@@ -14,10 +19,16 @@ function initTheme() {
   }
 }
 
-/** Apply theme to document and persist */
 watchEffect(() => {
+  if (typeof document === 'undefined') {
+    return
+  }
+
   document.documentElement.setAttribute('data-theme', theme.value)
-  localStorage.setItem('rr-theme', theme.value)
+
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('rr-theme', theme.value)
+  }
 })
 
 export function useTheme() {

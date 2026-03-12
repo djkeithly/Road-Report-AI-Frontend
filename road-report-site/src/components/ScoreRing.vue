@@ -14,58 +14,44 @@ const props = withDefaults(defineProps<{
 const { getTierColor, getScoreRingOffset } = useRiskScore()
 
 const dimensions = computed(() => {
-  const map = { sm: 48, md: 64, lg: 88 }
+  const map = { sm: 56, md: 72, lg: 88 }
   return map[props.size]
 })
 
 const fontSize = computed(() => {
-  const map = { sm: '14px', md: '18px', lg: '26px' }
+  const map = { sm: '18px', md: '22px', lg: '26px' }
   return map[props.size]
 })
 
+const strokeWidth = computed(() => (props.size === 'lg' ? 5 : props.size === 'sm' ? 5 : 5))
 const color = computed(() => getTierColor(props.tier))
 const offset = computed(() => getScoreRingOffset(props.score))
-
-// SVG circle: viewBox is always 88×88, radius=40, center=44
-const circumference = 2 * Math.PI * 40 // ≈ 251.3
+const circumference = 2 * Math.PI * 40
 </script>
 
 <template>
   <div
-    class="relative flex items-center justify-center flex-shrink-0"
+    class="relative flex flex-shrink-0 items-center justify-center"
     :style="{ width: `${dimensions}px`, height: `${dimensions}px` }"
   >
-    <!-- SVG ring -->
-    <svg
-      viewBox="0 0 88 88"
-      :style="{ width: `${dimensions}px`, height: `${dimensions}px` }"
-    >
-      <!-- Background ring -->
+    <svg viewBox="0 0 88 88" :style="{ width: `${dimensions}px`, height: `${dimensions}px` }">
+      <circle cx="44" cy="44" r="40" fill="none" stroke="var(--bg-2)" :stroke-width="strokeWidth" />
       <circle
-        cx="44" cy="44" r="40"
-        fill="none"
-        stroke="var(--bg-2)"
-        stroke-width="6"
-      />
-      <!-- Score fill ring -->
-      <circle
-        cx="44" cy="44" r="40"
+        cx="44"
+        cy="44"
+        r="40"
         fill="none"
         :stroke="color"
-        stroke-width="6"
+        :stroke-width="strokeWidth"
         stroke-linecap="round"
         :stroke-dasharray="circumference"
         :stroke-dashoffset="offset"
         transform="rotate(-90 44 44)"
-        class="transition-all duration-[1s]"
-        style="transition-timing-function: cubic-bezier(0.33, 1, 0.68, 1);"
+        class="transition-all duration-[1000ms]"
+        style="transition-timing-function:cubic-bezier(0.33, 1, 0.68, 1);"
       />
     </svg>
-    <!-- Score number -->
-    <span
-      class="absolute font-sans font-bold"
-      :style="{ fontSize, color }"
-    >
+    <span class="absolute font-sans font-bold" :style="{ fontSize, color }">
       {{ score }}
     </span>
   </div>

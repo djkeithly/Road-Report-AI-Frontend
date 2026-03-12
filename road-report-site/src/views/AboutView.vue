@@ -1,48 +1,41 @@
 <script setup lang="ts">
-/**
- * AboutView — About Page
- * Wireframe: Screen 4 (About)
- *
- * Sections: Data Sources, RRS Formula, Tech Stack, Team
- */
-
 const dataSources = [
   {
-    icon: '📊',
+    icon: 'CRIS',
     name: 'TxDOT CRIS',
-    desc: 'Crash Investigation System — historical accident records with location, date, time, weather, road conditions. Exportable as CSV, records back to 2016. 50K entries per query.',
+    desc: 'Crash Investigation System - historical accident records with location, date, time, weather, and road conditions. Exportable as CSV with records back to 2016. 50K entries per query.',
   },
   {
-    icon: '🌤',
+    icon: 'NWS',
     name: 'Weather.gov API',
-    desc: 'National Weather Service API providing real-time weather alerts and conditions by zone. Free with registration. Feeds the Environmental Risk component.',
+    desc: 'National Weather Service API providing real-time weather alerts and conditions by zone. Feeds the Environmental Risk component.',
   },
   {
-    icon: '🗺',
+    icon: 'MAP',
     name: 'Google Maps Platform',
-    desc: 'Reverse geocoding (coordinates → addresses), Roads API for nearest road matching, and RouteTravelAdvisory for real-time traffic data.',
+    desc: 'Reverse geocoding, Roads API for nearest road matching, and route-level traffic context for presenting risk by corridor.',
   },
   {
-    icon: '🚗',
+    icon: 'AADT',
     name: 'TxDOT AADT',
-    desc: 'Annual Average Daily Traffic counts — road-level traffic volume data. Includes the Top 100 most congested Texas roadways dataset.',
+    desc: 'Annual Average Daily Traffic counts - road-level traffic volume data including the Top 100 most congested Texas roadways dataset.',
   },
 ]
 
 const formulaComponents = [
-  { weight: '35%', name: 'Road Condition (C)', range: '0–30 points' },
-  { weight: '30%', name: 'Historical (A)', range: '0–25 points' },
-  { weight: '20%', name: 'Environmental (E)', range: '0–25 points' },
-  { weight: '15%', name: 'Traffic (T)', range: '0–20 points' },
+  { weight: '35%', name: 'Road Condition (C)', range: '0-30 points' },
+  { weight: '30%', name: 'Historical (A)', range: '0-25 points' },
+  { weight: '20%', name: 'Environmental (E)', range: '0-25 points' },
+  { weight: '15%', name: 'Traffic (T)', range: '0-20 points' },
 ]
 
 const techStack = [
-  { name: 'Vue.js + Vite', desc: 'Frontend framework', icon: '⚡' },
-  { name: 'TypeScript', desc: 'Type-safe frontend', icon: '🎨' },
-  { name: 'FastAPI', desc: 'Backend REST API', icon: '🐍' },
-  { name: 'PostgreSQL', desc: 'Database', icon: '🐘' },
-  { name: 'PyTorch', desc: 'ML model training', icon: '🔥' },
-  { name: 'Pandas + NumPy', desc: 'Data processing', icon: '🐼' },
+  { name: 'Vue.js + Vite', desc: 'Frontend framework', icon: 'UI' },
+  { name: 'TypeScript', desc: 'Type-safe frontend', icon: 'TS' },
+  { name: 'FastAPI', desc: 'Backend REST API', icon: 'API' },
+  { name: 'PostgreSQL', desc: 'Database', icon: 'DB' },
+  { name: 'PyTorch', desc: 'ML model training', icon: 'ML' },
+  { name: 'Pandas + NumPy', desc: 'Data processing', icon: 'DS' },
 ]
 
 const team = [
@@ -55,95 +48,61 @@ const team = [
 </script>
 
 <template>
-  <div class="animate-fade-in max-w-layout mx-auto px-6 pt-6 pb-10 space-y-10">
+  <div class="animate-fade-in mx-auto max-w-layout px-6 pb-10 pt-8">
+    <section class="relative mb-10 text-center">
+      <div class="pointer-events-none absolute left-1/2 top-[-40px] h-[200px] w-[420px] -translate-x-1/2 bg-[radial-gradient(ellipse,var(--accent-muted)_0%,transparent_70%)]" />
+      <h1 class="relative mb-3 font-serif text-[42px] font-normal tracking-[-0.03em]">About Road Report AI</h1>
+      <p class="relative mx-auto max-w-content text-[15px] leading-[1.65] text-text-1">
+        We use machine learning to analyze road conditions and historical accident data to predict crash risk levels. The model continuously learns from structured datasets to improve prediction accuracy across all 254 Texas counties.
+      </p>
+    </section>
 
-    <!-- ======== DATA SOURCES ======== -->
-    <section>
-      <h2 class="text-lg font-semibold mb-4">Data Sources</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div
-          v-for="ds in dataSources"
-          :key="ds.name"
-          class="bg-bg-card border border-border-0 rounded-md p-4 shadow-xs
-                 hover:-translate-y-0.5 hover:shadow-sm transition-all duration-fast"
-        >
-          <div
-            class="w-8 h-8 rounded-md bg-bg-1 flex items-center justify-center
-                   text-base mb-2"
-          >
-            {{ ds.icon }}
-          </div>
-          <div class="text-sm font-semibold mb-1">{{ ds.name }}</div>
-          <div class="text-[11px] text-text-1 leading-relaxed">{{ ds.desc }}</div>
+    <section class="pb-10">
+      <h2 class="mb-4 font-serif text-[24px] font-normal tracking-[-0.015em]">Data Sources</h2>
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div v-for="ds in dataSources" :key="ds.name" class="rounded-[12px] border border-border-0 bg-bg-card p-5 shadow-xs transition-all duration-fast hover:-translate-y-0.5 hover:shadow-sm">
+          <div class="mb-[10px] inline-flex h-8 w-8 items-center justify-center rounded-[8px] bg-accent-muted font-mono text-[12px] text-accent-text">{{ ds.icon }}</div>
+          <div class="mb-1 text-[14px] font-semibold">{{ ds.name }}</div>
+          <div class="text-[12px] leading-[1.5] text-text-1">{{ ds.desc }}</div>
         </div>
       </div>
     </section>
 
-    <!-- ======== RRS FORMULA ======== -->
-    <section>
-      <h2 class="text-lg font-semibold mb-4">Road Risk Score Formula</h2>
-      <div class="bg-bg-card border border-border-0 rounded-md p-5 shadow-xs text-center">
-        <div class="font-mono text-lg font-semibold tracking-wide mb-5">
-          RRS =
-          <span class="text-accent-text">0.35</span>C +
-          <span class="text-accent-text">0.30</span>A +
-          <span class="text-accent-text">0.20</span>E +
-          <span class="text-accent-text">0.15</span>T
+    <section class="pb-10">
+      <h2 class="mb-4 font-serif text-[24px] font-normal tracking-[-0.015em]">Road Risk Score Formula</h2>
+      <div class="rounded-[18px] border border-border-0 bg-bg-card p-7 shadow-xs">
+        <div class="mb-5 rounded-[8px] bg-bg-1 p-3 text-center font-serif text-[22px] tracking-[-0.01em]">
+          RRS = <span class="font-medium text-accent-text">0.35</span>C + <span class="font-medium text-accent-text">0.30</span>A + <span class="font-medium text-accent-text">0.20</span>E + <span class="font-medium text-accent-text">0.15</span>T
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          <div
-            v-for="fc in formulaComponents"
-            :key="fc.name"
-            class="border border-border-1 rounded-md p-3"
-          >
-            <div class="font-mono text-xl font-bold text-accent-text">{{ fc.weight }}</div>
-            <div class="text-[11px] font-semibold mt-0.5">{{ fc.name }}</div>
-            <div class="font-mono text-[9px] text-text-2">{{ fc.range }}</div>
+        <div class="grid grid-cols-2 gap-[10px] lg:grid-cols-4">
+          <div v-for="fc in formulaComponents" :key="fc.name" class="rounded-[8px] border border-border-1 p-[14px] text-center transition-all duration-fast hover:border-border-0 hover:bg-bg-1">
+            <div class="mb-[2px] font-mono text-[20px] font-semibold text-accent-text">{{ fc.weight }}</div>
+            <div class="mb-[2px] text-[12px] font-semibold">{{ fc.name }}</div>
+            <div class="font-mono text-[10px] text-text-2">{{ fc.range }}</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ======== TECH STACK ======== -->
-    <section>
-      <h2 class="text-lg font-semibold mb-4">Tech Stack</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div
-          v-for="tech in techStack"
-          :key="tech.name"
-          class="bg-bg-card border border-border-0 rounded-md p-3.5 shadow-xs
-                 flex items-center gap-3
-                 hover:-translate-y-0.5 hover:shadow-sm transition-all duration-fast"
-        >
-          <div class="w-8 h-8 rounded-md bg-bg-1 flex items-center justify-center text-sm flex-shrink-0">
-            {{ tech.icon }}
-          </div>
+    <section class="pb-10">
+      <h2 class="mb-4 font-serif text-[24px] font-normal tracking-[-0.015em]">Tech Stack</h2>
+      <div class="grid grid-cols-1 gap-[10px] sm:grid-cols-2 lg:grid-cols-3">
+        <div v-for="tech in techStack" :key="tech.name" class="flex items-center gap-3 rounded-[8px] border border-border-0 bg-bg-card px-4 py-[14px] shadow-xs transition-all duration-fast hover:-translate-y-px hover:shadow-sm">
+          <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[4px] bg-bg-1 font-mono text-[12px] text-text-1">{{ tech.icon }}</div>
           <div>
-            <div class="text-xs font-semibold">{{ tech.name }}</div>
-            <div class="text-[10px] text-text-2">{{ tech.desc }}</div>
+            <div class="text-[13px] font-medium">{{ tech.name }}</div>
+            <div class="text-[11px] text-text-2">{{ tech.desc }}</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ======== TEAM ======== -->
-    <section>
-      <h2 class="text-lg font-semibold mb-4">The Team</h2>
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div
-          v-for="member in team"
-          :key="member.initials"
-          class="bg-bg-card border border-border-0 rounded-md p-4 text-center shadow-xs
-                 hover:-translate-y-0.5 hover:shadow-sm transition-all duration-fast"
-        >
-          <div
-            class="w-10 h-10 rounded-full bg-bg-2 mx-auto mb-2
-                   flex items-center justify-center
-                   text-sm font-semibold text-text-1"
-          >
-            {{ member.initials }}
-          </div>
-          <div class="text-xs font-semibold">{{ member.name }}</div>
+    <section class="pb-10">
+      <h2 class="mb-4 font-serif text-[24px] font-normal tracking-[-0.015em]">The Team</h2>
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div v-for="member in team" :key="member.initials" class="rounded-[12px] border border-border-0 bg-bg-card px-4 py-5 text-center shadow-xs transition-all duration-fast hover:-translate-y-0.5 hover:shadow-sm">
+          <div class="mx-auto mb-[10px] flex h-12 w-12 items-center justify-center rounded-full bg-bg-2 text-[18px] font-semibold text-text-1">{{ member.initials }}</div>
+          <div class="text-[13px] font-semibold">{{ member.name }}</div>
         </div>
       </div>
     </section>

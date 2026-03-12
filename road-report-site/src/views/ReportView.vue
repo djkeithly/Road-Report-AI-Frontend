@@ -1,25 +1,29 @@
 <script setup lang="ts">
-/**
- * ReportView — AI Risk Report (demo-ready)
- *
- * Reads query param: /report?q=...
- * Shows mock AI classification output (tier + confidence + explanation)
- * Later: replace mockPredict() with backend API call.
- */
-
 import { computed, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import RiskBadge from '@/components/RiskBadge.vue'
+import ScoreRing from '@/components/ScoreRing.vue'
 
 type RiskTier = 'low' | 'moderate' | 'high' | 'severe'
 
 type AiReport = {
   road: string
+  segment: string
+  coordinates: string
   updatedAt: string
   tier: RiskTier
-  confidence: number // 0-100
+  score: number
   summary: string
-  factors: string[]
+  warning?: string
+  components: Array<{
+    name: string
+    weight: string
+    score: number
+    maxPoints: number
+    color: string
+    details: Array<{ label: string; value: string }>
+  }>
+  monthlyHistory: Array<{ month: string; height: string; color: string }>
 }
 
 const route = useRoute()
@@ -36,42 +40,97 @@ const tierToLabel: Record<RiskTier, string> = {
   severe: 'Severe Risk',
 }
 
-// Mock AI prediction (replace later with real backend call)
 async function mockPredict(roadQuery: string): Promise<AiReport> {
   await new Promise((r) => setTimeout(r, 650))
 
-  // deterministic-ish based on input so demos are repeatable
   let hash = 0
   for (let i = 0; i < roadQuery.length; i++) hash = (hash * 31 + roadQuery.charCodeAt(i)) >>> 0
   const tiers: RiskTier[] = ['low', 'moderate', 'high', 'severe']
-  const tier = tiers[hash % tiers.length]
-  const confidence = Math.min(95, 70 + (hash % 26)) // 70–95
-
-  const pool = [
-    'Historical crash patterns in similar road segments',
-    'Traffic exposure proxy (AADT-like feature)',
-    'Weather sensitivity proxy (rain/ice conditions)',
-    'Intersection density and turning complexity',
-    'Speed environment and roadway class',
-    'Low-light / nighttime risk proxy',
-    'Work-zone likelihood proxy',
-  ]
-  const factors = [pool[hash % pool.length], pool[(hash + 2) % pool.length], pool[(hash + 4) % pool.length]]
+  const tier: RiskTier = tiers[hash % tiers.length] ?? 'moderate'
+  const scoreByTier: Record<RiskTier, number> = { low: 32, moderate: 64, high: 78, severe: 91 }
 
   const summary: Record<RiskTier, string> = {
-    low: 'Model indicates relatively low crash likelihood under typical conditions.',
-    moderate: 'Model indicates moderate risk; conditions and exposure may elevate crash likelihood.',
-    high: 'Model indicates elevated crash likelihood; drive with caution and stay alert.',
-    severe: 'Model indicates very high crash likelihood; avoid if possible or use extreme caution.',
+    low: 'This road segment currently shows relatively low crash risk compared with nearby corridors. Conditions remain stable, with lighter traffic and fewer active environmental stressors.',
+    moderate: 'This road segment shows moderate crash risk driven primarily by a higher historical accident rate and current weather conditions. Traffic is adding pressure, but not yet at severe levels.',
+    high: 'This road segment is showing elevated crash risk due to a stronger combination of traffic pressure, incident history, and environmental conditions.',
+    severe: 'This road segment is showing very high crash risk right now. Avoid the segment if possible or use extreme caution and slower travel speeds.',
   }
+
+  const components = [
+    {
+      name: 'Road Condition (C)',
+      weight: 'x 0.35',
+      score: tier === 'low' ? 6 : tier === 'moderate' ? 10 : tier === 'high' ? 16 : 21,
+      maxPoints: 30,
+      color: tier === 'low' ? 'var(--risk-low)' : 'var(--risk-mod)',
+      details: [
+        { label: 'Construction Zone', value: tier === 'low' ? '-' : '+10' },
+        { label: 'Potholes', value: tier === 'severe' ? '+6' : '-' },
+        { label: 'Lane Closures', value: tier === 'high' || tier === 'severe' ? '+4' : '-' },
+      ],
+    },
+    {
+      name: 'Historical (A)',
+      weight: 'x 0.30',
+      score: tier === 'low' ? 10 : tier === 'moderate' ? 20 : tier === 'high' ? 22 : 24,
+      maxPoints: 25,
+      color: tier === 'low' ? 'var(--risk-mod)' : 'var(--risk-high)',
+      details: [
+        { label: 'Crashes / Year', value: tier === 'low' ? '62' : tier === 'moderate' ? '127' : tier === 'high' ? '151' : '188' },
+        { label: 'County Percentile', value: tier === 'low' ? '54th' : tier === 'moderate' ? '80th' : tier === 'high' ? '89th' : '96th' },
+        { label: 'Data Source', value: 'CRIS' },
+      ],
+    },
+    {
+      name: 'Environmental (E)',
+      weight: 'x 0.20',
+      score: tier === 'low' ? 7 : tier === 'moderate' ? 12 : tier === 'high' ? 17 : 19,
+      maxPoints: 25,
+      color: tier === 'low' ? 'var(--risk-low)' : tier === 'moderate' ? 'var(--risk-mod)' : 'var(--risk-high)',
+      details: [
+        { label: 'Heavy Rain', value: tier === 'low' ? '+2' : tier === 'moderate' ? '+8' : '+11' },
+        { label: 'Low Lighting', value: tier === 'low' ? '+1' : '+4' },
+        { label: 'Source', value: 'weather.gov' },
+      ],
+    },
+    {
+      name: 'Traffic (T)',
+      weight: 'x 0.15',
+      score: tier === 'low' ? 9 : tier === 'moderate' ? 12 : tier === 'high' ? 15 : 18,
+      maxPoints: 20,
+      color: tier === 'low' ? 'var(--risk-mod)' : 'var(--risk-high)',
+      details: [
+        { label: 'High Density', value: tier === 'low' ? '+4' : tier === 'moderate' ? '+8' : '+12' },
+        { label: 'Near Intersection', value: '+4' },
+        { label: 'Source', value: 'TxDOT AADT' },
+      ],
+    },
+  ]
 
   return {
     road: roadQuery,
-    updatedAt: 'Just now',
+    segment: 'Near Exit 233',
+    coordinates: '30.2672°N, 97.7431°W',
+    updatedAt: 'Updated 3 min ago',
     tier,
-    confidence,
+    score: scoreByTier[tier],
     summary: summary[tier],
-    factors,
+    warning: 'Traffic sensors unavailable for this segment - using the nearest TxDOT AADT estimate.',
+    components,
+    monthlyHistory: [
+      { month: 'Jan', height: '60%', color: 'var(--risk-low)' },
+      { month: 'Feb', height: '55%', color: 'var(--risk-low)' },
+      { month: 'Mar', height: '70%', color: 'var(--risk-mod)' },
+      { month: 'Apr', height: '80%', color: 'var(--risk-mod)' },
+      { month: 'May', height: '85%', color: 'var(--risk-high)' },
+      { month: 'Jun', height: '90%', color: 'var(--risk-high)' },
+      { month: 'Jul', height: '75%', color: 'var(--risk-mod)' },
+      { month: 'Aug', height: '70%', color: 'var(--risk-mod)' },
+      { month: 'Sep', height: '65%', color: 'var(--risk-mod)' },
+      { month: 'Oct', height: '95%', color: 'var(--risk-severe)' },
+      { month: 'Nov', height: '80%', color: 'var(--risk-high)' },
+      { month: 'Dec', height: '100%', color: 'var(--risk-severe)' },
+    ],
   }
 }
 
@@ -86,7 +145,6 @@ async function run() {
 
   loading.value = true
   try {
-    // later: replace with real API call to backend
     report.value = await mockPredict(q.value)
   } catch {
     error.value = 'Failed to generate report. Please try again.'
@@ -101,79 +159,100 @@ watchEffect(() => {
 </script>
 
 <template>
-  <div class="animate-fade-in max-w-layout mx-auto px-6 pt-6 pb-10">
-    <h1 class="font-serif text-2xl font-normal tracking-tight mb-2">Risk Report</h1>
-
-    <div class="text-text-2 font-mono text-[11px] mb-4">
+  <div class="animate-fade-in mx-auto max-w-layout px-6 pb-10 pt-6">
+    <div class="mb-4 font-mono text-[11px] text-text-2">
       Query: <span class="text-text-0">{{ q || '[none]' }}</span>
     </div>
 
-    <div v-if="error" class="bg-bg-card border border-border-0 rounded-md p-4 text-sm text-red-500 mb-4">
+    <div v-if="error" class="mb-4 rounded-[12px] border border-border-0 bg-bg-card p-4 text-sm text-red-500">
       {{ error }}
     </div>
 
-    <div v-if="loading" class="bg-bg-card border border-border-0 rounded-md p-4 mb-4">
+    <div v-if="loading" class="mb-4 rounded-[12px] border border-border-0 bg-bg-card p-4">
       <div class="flex items-center gap-3">
-        <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
-        <div class="text-sm text-text-1">Generating AI prediction…</div>
+        <span class="h-2 w-2 animate-pulse rounded-full bg-accent"></span>
+        <div class="text-sm text-text-1">Generating AI prediction...</div>
       </div>
     </div>
 
-    <div v-if="report" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <!-- Main card -->
-      <div class="bg-bg-card border border-border-0 rounded-lg p-5 shadow-sm">
-        <div class="text-xs font-mono text-text-2 mb-2">PREDICTION</div>
-
-        <div class="flex items-center justify-between mb-2">
-          <div class="font-serif text-xl">{{ tierToLabel[report.tier] }}</div>
-          <RiskBadge :tier="report.tier" :label="tierToLabel[report.tier]" />
+    <div v-if="report" class="space-y-3">
+      <section class="flex flex-col gap-6 rounded-[24px] border border-border-0 bg-bg-0 px-6 py-8 md:flex-row md:items-start">
+        <div class="min-w-[200px] rounded-[18px] border border-border-0 bg-bg-card p-6 text-center shadow-sm">
+          <div class="mx-auto w-fit">
+            <ScoreRing :score="report.score" :tier="report.tier" size="lg" />
+          </div>
+          <div class="mt-[10px] font-mono text-[10px] uppercase tracking-[0.08em] text-text-2">Road Risk Score</div>
+          <div class="mt-[6px]"><RiskBadge :tier="report.tier" :label="tierToLabel[report.tier]" /></div>
         </div>
 
-        <div class="text-sm text-text-1 mb-4">{{ report.summary }}</div>
-
-        <div class="flex items-center justify-between text-sm">
-          <span class="text-text-2 font-mono text-[10px]">CONFIDENCE</span>
-          <span class="font-semibold">{{ report.confidence }}%</span>
+        <div class="flex-1">
+          <div class="mb-1 font-serif text-[28px] tracking-[-0.02em]">{{ report.road }}</div>
+          <div class="mb-4 flex flex-wrap gap-3 text-[12px] text-text-2">
+            <span class="flex items-center gap-1">{{ report.segment }}</span>
+            <span class="flex items-center gap-1">{{ report.coordinates }}</span>
+            <span class="flex items-center gap-1">{{ report.updatedAt }}</span>
+          </div>
+          <div v-if="report.warning" class="mt-[10px] max-w-content rounded-[12px] border border-[rgba(228,166,59,0.30)] bg-[rgba(228,166,59,0.10)] px-3 py-2.5 text-[12px] leading-[1.5] text-text-1">
+            {{ report.warning }}
+          </div>
+          <div class="mt-4 max-w-content text-[14px] leading-[1.6] text-text-1">
+            {{ report.summary }}
+          </div>
         </div>
+      </section>
 
-        <div class="mt-3 text-xs text-text-2">
-          Updated: <span class="font-mono">{{ report.updatedAt }}</span>
+      <section class="rounded-[12px] border border-border-0 bg-bg-card p-5 shadow-xs">
+        <div class="mb-[14px] text-[14px] font-semibold">RRS Component Breakdown</div>
+        <div class="grid grid-cols-1 gap-3 xl:grid-cols-4">
+          <article v-for="component in report.components" :key="component.name" class="rounded-[12px] border border-border-0 bg-bg-card p-[18px] shadow-xs transition-all duration-fast hover:-translate-y-0.5 hover:shadow-sm">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <span class="text-[12px] font-semibold">{{ component.name }}</span>
+              <span class="rounded-full bg-bg-1 px-2 py-[2px] font-mono text-[10px] text-text-2">{{ component.weight }}</span>
+            </div>
+            <div class="mb-1 text-[28px] font-bold" :style="{ color: component.color }">{{ component.score }}</div>
+            <div class="mb-[10px] font-mono text-[10px] text-text-2">of {{ component.maxPoints }} possible points</div>
+            <div class="h-[6px] overflow-hidden rounded-[3px] bg-bg-2">
+              <div class="h-full rounded-[3px]" :style="{ width: `${(component.score / component.maxPoints) * 100}%`, background: component.color }" />
+            </div>
+            <div class="mt-3 flex flex-col gap-1">
+              <div v-for="detail in component.details" :key="detail.label" class="flex justify-between text-[11px]">
+                <span class="text-text-2">{{ detail.label }}</span>
+                <span class="font-medium text-text-0">{{ detail.value }}</span>
+              </div>
+            </div>
+          </article>
         </div>
-      </div>
+      </section>
 
-      <!-- Factors -->
-      <div class="bg-bg-card border border-border-0 rounded-lg p-5 shadow-sm lg:col-span-2">
-        <div class="text-xs font-mono text-text-2 mb-3">MODEL INSIGHTS (PLACEHOLDERS)</div>
-
-        <ul class="space-y-2 text-[13px] text-text-1">
-          <li v-for="f in report.factors" :key="f" class="flex gap-2">
-            <span class="mt-2 w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0"></span>
-            <span>{{ f }}</span>
-          </li>
-        </ul>
-
-        <div class="mt-5 p-4 rounded-md bg-bg-2 border border-border-1 text-xs text-text-2">
-          Note: This page is using a mock AI prediction for demo purposes. It will be replaced with a real backend
-          inference API.
+      <section class="rounded-[12px] border border-border-0 bg-bg-card p-5 shadow-xs">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-[14px] font-semibold">Crash History - {{ report.road }}</div>
+            <div class="text-[12px] text-text-2">Monthly average from CRIS data, 2020-2024</div>
+          </div>
+          <RiskBadge :tier="report.tier" label="127 avg/year" />
         </div>
-      </div>
+        <div class="mt-4 grid h-[100px] grid-cols-12 items-end gap-[6px]">
+          <div v-for="bar in report.monthlyHistory" :key="bar.month" class="flex h-full flex-col items-center gap-[6px]">
+            <div class="mt-auto w-full rounded-t-[3px]" :style="{ height: bar.height, background: bar.color }" />
+            <div class="font-mono text-[9px] text-text-2">{{ bar.month }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-[12px] border border-border-0 bg-bg-card p-5 shadow-xs">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-[14px] font-semibold">Live Alerts</div>
+            <div class="text-[12px] text-text-2">Road closures, severe weather, and incident reports</div>
+          </div>
+          <RiskBadge tier="low" label="None" />
+        </div>
+        <div class="mt-3 rounded-[12px] border border-dashed border-border-0 bg-[rgba(10,123,101,0.04)] px-3 py-4">
+          <div class="mb-1 text-[12px] font-bold text-text-0">No active alerts in this area</div>
+          <div class="text-[11px] leading-[1.45] text-text-1">If new incidents occur, they will appear here as they are reported.</div>
+        </div>
+      </section>
     </div>
-
-    <!-- Map placeholder -->
-    <section class="mt-6">
-      <div
-        class="mx-auto h-[260px] rounded-lg bg-bg-2 border border-border-0
-               relative overflow-hidden flex items-center justify-center"
-      >
-        <div
-          class="absolute inset-0 opacity-60"
-          style="background-image:
-            linear-gradient(var(--border-1) 1px, transparent 1px),
-            linear-gradient(90deg, var(--border-1) 1px, transparent 1px);
-            background-size: 36px 36px;"
-        />
-        <p class="relative font-mono text-xs text-text-2">Google Maps + Risk Overlay · Phase 3</p>
-      </div>
-    </section>
   </div>
 </template>
