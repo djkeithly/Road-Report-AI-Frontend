@@ -183,14 +183,14 @@ watch(
 
 <template>
   <div class="animate-fade-in mx-auto max-w-layout px-6 pb-8 pt-6">
-    <div class="overflow-hidden rounded-[24px] border border-border-0 bg-bg-0 shadow-lg">
+    <div class="overflow-hidden rounded-[26px] border border-border-0 bg-bg-0 shadow-[0_22px_48px_rgba(0,0,0,0.08)]">
       <div class="grid h-[580px] grid-cols-1 md:grid-cols-[240px_1fr]">
-        <aside class="hidden overflow-y-auto border-r border-border-0 bg-bg-1 p-4 md:flex md:flex-col">
+        <aside class="hidden overflow-y-auto border-r border-border-0 bg-bg-1/90 p-4 md:flex md:flex-col">
           <div class="mb-3 flex items-center justify-between">
             <div class="text-[13px] font-semibold">Chats</div>
             <button
               type="button"
-              class="flex h-[26px] w-[26px] items-center justify-center rounded-[4px] border border-border-0 bg-bg-card text-[15px] text-text-1 transition-all duration-fast hover:border-accent hover:text-accent-text"
+              class="flex h-[28px] w-[28px] items-center justify-center rounded-[8px] border border-border-0 bg-bg-card text-[15px] text-text-1 shadow-xs transition-all duration-fast hover:border-accent hover:text-accent-text"
               @click="startNewChat"
               aria-label="Start new chat"
             >
@@ -201,7 +201,7 @@ watch(
           <input
             type="text"
             placeholder="Search chats..."
-            class="mb-[14px] w-full rounded-[4px] border border-border-0 bg-bg-card px-[10px] py-[7px] text-[12px] text-text-0 outline-none placeholder:text-text-2 focus:border-accent"
+            class="mb-[14px] w-full rounded-[8px] border border-border-0 bg-bg-card px-[10px] py-[8px] text-[12px] text-text-0 outline-none placeholder:text-text-2 focus:border-accent"
           >
 
           <template v-for="(items, group) in groupedSessions" :key="group">
@@ -212,7 +212,7 @@ watch(
               v-for="session in items"
               :key="session.id"
               type="button"
-              class="mb-px w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-[4px] px-[9px] py-[7px] text-left text-[12px] transition-all duration-fast"
+              class="mb-1 w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-[8px] px-[10px] py-[8px] text-left text-[12px] transition-all duration-fast"
               :class="session.id === activeSessionId
                 ? 'bg-accent-muted font-medium text-accent-text'
                 : 'text-text-1 hover:bg-bg-2 hover:text-text-0'"
@@ -224,7 +224,7 @@ watch(
         </aside>
 
         <div class="flex flex-col bg-bg-0">
-          <div class="flex-1 space-y-5 overflow-y-auto p-6">
+          <div class="flex-1 space-y-5 overflow-y-auto p-6 md:p-7">
             <div
               v-for="message in activeMessages"
               :key="message.id"
@@ -239,7 +239,7 @@ watch(
               </div>
 
               <div
-                class="rounded-[12px] px-[14px] py-[10px] text-[13px] leading-[1.55]"
+                class="polish-card rounded-[14px] px-[14px] py-[10px] text-[13px] leading-[1.55] shadow-[0_10px_22px_rgba(0,0,0,0.04)]"
                 :class="message.role === 'assistant'
                   ? 'rounded-bl-[4px] border border-border-0 bg-bg-card text-text-0'
                   : 'rounded-br-[4px] bg-text-0 text-text-inv'"
@@ -248,7 +248,7 @@ watch(
 
                 <div
                   v-if="message.score && message.tier && message.road"
-                  class="mt-2 rounded-[12px] border border-border-0 bg-bg-0 p-[14px]"
+                  class="mt-2 rounded-[14px] border border-border-0 bg-bg-0 p-[14px]"
                 >
                   <div class="mb-[10px] flex items-center justify-between gap-3">
                     <span class="text-[13px] font-semibold">{{ message.road }}</span>
@@ -299,7 +299,7 @@ watch(
           </div>
 
           <div class="border-t border-border-1 px-6 pb-[18px] pt-3">
-            <div class="flex items-end gap-[6px] rounded-[18px] border border-border-0 bg-bg-input px-4 py-2 transition-all duration-fast focus-within:border-accent">
+            <div class="flex items-end gap-[6px] rounded-[20px] border border-border-0 bg-bg-input px-4 py-2.5 shadow-[0_12px_28px_rgba(0,0,0,0.05)] transition-all duration-fast focus-within:border-accent">
               <input
                 v-model="chatInput"
                 type="text"
@@ -315,7 +315,7 @@ watch(
                   <svg class="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /></svg>
                 </button>
               </div>
-              <button type="button" class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-accent text-text-on-accent transition-all duration-fast hover:scale-[1.04] hover:bg-accent-hover" @click="sendMessage()" aria-label="Send message">
+              <button type="button" class="accent-glow flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-accent text-text-on-accent transition-all duration-fast hover:scale-[1.04] hover:bg-accent-hover" @click="sendMessage()" aria-label="Send message">
                 <svg class="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </button>
             </div>

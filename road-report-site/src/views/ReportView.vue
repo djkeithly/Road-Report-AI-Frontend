@@ -164,11 +164,11 @@ watchEffect(() => {
       Query: <span class="text-text-0">{{ q || '[none]' }}</span>
     </div>
 
-    <div v-if="error" class="mb-4 rounded-[12px] border border-border-0 bg-bg-card p-4 text-sm text-red-500">
+    <div v-if="error" class="mb-4 rounded-[14px] border border-border-0 bg-bg-card p-4 text-sm text-red-500 shadow-xs">
       {{ error }}
     </div>
 
-    <div v-if="loading" class="mb-4 rounded-[12px] border border-border-0 bg-bg-card p-4">
+    <div v-if="loading" class="mb-4 rounded-[14px] border border-border-0 bg-bg-card p-4 shadow-xs">
       <div class="flex items-center gap-3">
         <span class="h-2 w-2 animate-pulse rounded-full bg-accent"></span>
         <div class="text-sm text-text-1">Generating AI prediction...</div>
@@ -176,8 +176,8 @@ watchEffect(() => {
     </div>
 
     <div v-if="report" class="space-y-3">
-      <section class="flex flex-col gap-6 rounded-[24px] border border-border-0 bg-bg-0 px-6 py-8 md:flex-row md:items-start">
-        <div class="min-w-[200px] rounded-[18px] border border-border-0 bg-bg-card p-6 text-center shadow-sm">
+      <section class="flex flex-col gap-6 rounded-[26px] border border-border-0 bg-bg-0 px-6 py-8 shadow-[0_18px_40px_rgba(0,0,0,0.06)] md:flex-row md:items-start">
+        <div class="polish-card min-w-[200px] rounded-[20px] border border-border-0 bg-bg-card p-6 text-center shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
           <div class="mx-auto w-fit">
             <ScoreRing :score="report.score" :tier="report.tier" size="lg" />
           </div>
@@ -201,10 +201,10 @@ watchEffect(() => {
         </div>
       </section>
 
-      <section class="rounded-[12px] border border-border-0 bg-bg-card p-5 shadow-xs">
+      <section class="rounded-[16px] border border-border-0 bg-bg-card p-5 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
         <div class="mb-[14px] text-[14px] font-semibold">RRS Component Breakdown</div>
         <div class="grid grid-cols-1 gap-3 xl:grid-cols-4">
-          <article v-for="component in report.components" :key="component.name" class="rounded-[12px] border border-border-0 bg-bg-card p-[18px] shadow-xs transition-all duration-fast hover:-translate-y-0.5 hover:shadow-sm">
+          <article v-for="component in report.components" :key="component.name" class="polish-card rounded-[14px] border border-border-0 bg-bg-card p-[18px] shadow-xs transition-all duration-fast hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(0,0,0,0.06)]">
             <div class="mb-3 flex items-center justify-between gap-3">
               <span class="text-[12px] font-semibold">{{ component.name }}</span>
               <span class="rounded-full bg-bg-1 px-2 py-[2px] font-mono text-[10px] text-text-2">{{ component.weight }}</span>
@@ -224,7 +224,7 @@ watchEffect(() => {
         </div>
       </section>
 
-      <section class="rounded-[12px] border border-border-0 bg-bg-card p-5 shadow-xs">
+      <section class="rounded-[16px] border border-border-0 bg-bg-card p-5 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
         <div class="flex items-center justify-between gap-3">
           <div>
             <div class="text-[14px] font-semibold">Crash History - {{ report.road }}</div>
@@ -240,7 +240,7 @@ watchEffect(() => {
         </div>
       </section>
 
-      <section class="rounded-[12px] border border-border-0 bg-bg-card p-5 shadow-xs">
+      <section class="rounded-[16px] border border-border-0 bg-bg-card p-5 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
         <div class="flex items-center justify-between gap-3">
           <div>
             <div class="text-[14px] font-semibold">Live Alerts</div>

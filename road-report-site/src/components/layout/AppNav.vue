@@ -25,7 +25,7 @@ watch(
 <template>
   <header
     class="sticky top-0 z-50 border-b border-border-0/90 bg-bg-0/90
-           backdrop-blur-xl transition-colors duration-base"
+           shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-xl transition-colors duration-base"
   >
     <nav class="mx-auto flex h-14 max-w-layout items-center px-5 md:px-8">
       <RouterLink to="/" class="flex items-center gap-2">
@@ -35,7 +35,7 @@ watch(
         >
           RR
         </div>
-        <span class="font-serif text-lg font-medium tracking-tight text-text-0">
+        <span class="text-[1.5rem] font-semibold tracking-[-0.04em] text-text-0 md:text-[1.82rem]" style="font-family: 'Cormorant Garamond', serif;">
           Road Report <em class="text-accent-text">AI</em>
         </span>
       </RouterLink>
@@ -45,9 +45,9 @@ watch(
           v-for="link in navLinks"
           :key="link.to"
           :to="link.to"
-          class="rounded-full px-4 py-2 text-sm font-medium text-text-2
-                 transition-all duration-fast hover:bg-bg-1 hover:text-text-0"
-          active-class="!bg-bg-1 !text-text-0"
+          class="inline-flex items-center justify-center rounded-full px-4 py-2 text-center text-sm font-medium text-text-2
+                 transition-all duration-fast hover:bg-bg-1 hover:text-text-0 hover:shadow-xs"
+          active-class="!bg-bg-1 !text-text-0 !shadow-xs"
         >
           {{ link.label }}
         </RouterLink>
@@ -57,7 +57,7 @@ watch(
         <button
           type="button"
           @click="toggleTheme"
-          class="flex h-8 w-8 items-center justify-center rounded-full border border-border-0 bg-bg-1/80 text-sm text-text-1 transition-all duration-fast hover:border-accent hover:text-accent-text"
+          class="flex h-8 w-8 items-center justify-center rounded-full border border-border-0 bg-bg-1/80 text-sm text-text-1 shadow-xs transition-all duration-fast hover:border-accent hover:text-accent-text"
           :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`"
           :aria-label="`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`"
         >
@@ -76,23 +76,6 @@ watch(
             <path d="M21 12.79A9 9 0 1 1 11.21 3c0 .34-.02.68-.02 1.03A7.77 7.77 0 0 0 18.97 11.8c.35 0 .69-.01 1.03-.02Z" />
           </svg>
         </button>
-
-        <RouterLink
-          to="/account"
-          class="hidden rounded-full border border-border-0 bg-bg-card/90 px-4 py-2
-                 text-xs font-medium text-text-1 shadow-xs transition-all duration-fast
-                 hover:border-accent/25 hover:text-text-0 sm:inline-flex"
-        >
-          Sign in
-        </RouterLink>
-        <RouterLink
-          to="/account?mode=register"
-          class="hidden rounded-full bg-accent px-4 py-2 text-xs font-semibold
-                 text-text-on-accent shadow-sm transition-all duration-fast
-                 hover:bg-accent-hover sm:inline-flex"
-        >
-          Register
-        </RouterLink>
 
         <button
           type="button"
@@ -123,28 +106,11 @@ watch(
           v-for="link in navLinks"
           :key="`mobile-${link.to}`"
           :to="link.to"
-          class="rounded-full border border-border-0 bg-bg-card px-4 py-2 text-sm text-text-1 shadow-xs"
+          class="inline-flex items-center justify-center rounded-full border border-border-0 bg-bg-card px-4 py-2 text-center text-sm text-text-1 shadow-xs"
         >
           {{ link.label }}
-        </RouterLink>
-      </div>
-      <div class="mt-3 grid grid-cols-2 gap-2">
-        <RouterLink
-          to="/account"
-          class="rounded-full border border-border-0 bg-bg-card px-4 py-2 text-center text-sm text-text-1"
-        >
-          Sign in
-        </RouterLink>
-        <RouterLink
-          to="/account?mode=register"
-          class="rounded-full bg-accent px-4 py-2 text-center text-sm text-text-on-accent"
-        >
-          Register
         </RouterLink>
       </div>
     </div>
   </header>
 </template>
-
-
-
