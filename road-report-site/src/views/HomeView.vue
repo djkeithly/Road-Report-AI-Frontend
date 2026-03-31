@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import MapDisplay from '@/components/MapDisplay.vue'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -33,13 +33,11 @@ const features = [
 
 const hints = ['I-35, Austin', 'US-290, Houston', 'Loop 1604, San Antonio', 'SH-130, Georgetown']
 
-// Replaced goToChat with a geocoding search function
 async function searchLocation(query?: string) {
   const trimmed = query?.trim() ?? searchQuery.value.trim()
   if (!trimmed) return
 
   try {
-    // 1. Fetch coordinates from Nominatim API
     const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`)
     const data = await response.json()
 
@@ -47,7 +45,6 @@ async function searchLocation(query?: string) {
       const lat = parseFloat(data[0].lat)
       const lon = parseFloat(data[0].lon)
 
-      // 2. Calculate a bounding box similar to the UTD size (0.030 lon x 0.020 lat)
       const w = (lon - 0.015).toFixed(5)
       const s = (lat - 0.010).toFixed(5)
       const e = (lon + 0.015).toFixed(5)
@@ -55,10 +52,14 @@ async function searchLocation(query?: string) {
 
       const boundsString = `${w},${s},${e},${n}`
 
-      // 3. Push bounds to the URL so MapDisplay.vue detects the change
       router.push({
-        path: '/', // Stay on HomeView
-        query: { bounds: boundsString },
+        path: '/report',
+        query: {
+          q: trimmed,
+          lat: lat.toFixed(6),
+          lng: lon.toFixed(6),
+          bounds: boundsString,
+        },
       })
     } else {
       alert("Location not found. Please try a different search term.")

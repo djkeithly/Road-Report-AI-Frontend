@@ -3,8 +3,9 @@ import { computed, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import RiskBadge from '@/components/RiskBadge.vue'
 import ScoreRing from '@/components/ScoreRing.vue'
-
-type RiskTier = 'low' | 'moderate' | 'high' | 'severe'
+import { getTier, getTierLabel } from '@/composables/useRiskScore'
+import { predictRisk } from '@/lib/api/risk'
+import type { RiskTier } from '@/types/risk'
 
 type AiReport = {
   road: string
@@ -28,43 +29,24 @@ type AiReport = {
 
 const route = useRoute()
 const q = computed(() => (route.query.q as string | undefined)?.trim() ?? '')
+const latitude = computed(() => Number.parseFloat((route.query.lat as string | undefined) ?? ''))
+const longitude = computed(() => Number.parseFloat((route.query.lng as string | undefined) ?? ''))
+const hasCoordinates = computed(() => Number.isFinite(latitude.value) && Number.isFinite(longitude.value))
 
 const loading = ref(false)
 const error = ref<string | null>(null)
 const report = ref<AiReport | null>(null)
 
-const tierToLabel: Record<RiskTier, string> = {
-  low: 'Low Risk',
-  moderate: 'Moderate Risk',
-  high: 'High Risk',
-  severe: 'Severe Risk',
-}
-
-async function mockPredict(roadQuery: string): Promise<AiReport> {
-  await new Promise((r) => setTimeout(r, 650))
-
-  let hash = 0
-  for (let i = 0; i < roadQuery.length; i++) hash = (hash * 31 + roadQuery.charCodeAt(i)) >>> 0
-  const tiers: RiskTier[] = ['low', 'moderate', 'high', 'severe']
-  const tier: RiskTier = tiers[hash % tiers.length] ?? 'moderate'
-  const scoreByTier: Record<RiskTier, number> = { low: 32, moderate: 64, high: 78, severe: 91 }
-
-  const summary: Record<RiskTier, string> = {
-    low: 'This road segment currently shows relatively low crash risk compared with nearby corridors. Conditions remain stable, with lighter traffic and fewer active environmental stressors.',
-    moderate: 'This road segment shows moderate crash risk driven primarily by a higher historical accident rate and current weather conditions. Traffic is adding pressure, but not yet at severe levels.',
-    high: 'This road segment is showing elevated crash risk due to a stronger combination of traffic pressure, incident history, and environmental conditions.',
-    severe: 'This road segment is showing very high crash risk right now. Avoid the segment if possible or use extreme caution and slower travel speeds.',
-  }
-
-  const components = [
+function createComponentDetails(tier: RiskTier) {
+  return [
     {
       name: 'Road Condition (C)',
       weight: 'x 0.35',
-      score: tier === 'low' ? 6 : tier === 'moderate' ? 10 : tier === 'high' ? 16 : 21,
+      score: tier === 'very-low' ? 4 : tier === 'low' ? 6 : tier === 'moderate' ? 10 : tier === 'high' ? 16 : 21,
       maxPoints: 30,
-      color: tier === 'low' ? 'var(--risk-low)' : 'var(--risk-mod)',
+      color: tier === 'very-low' || tier === 'low' ? 'var(--risk-low)' : 'var(--risk-mod)',
       details: [
-        { label: 'Construction Zone', value: tier === 'low' ? '-' : '+10' },
+        { label: 'Construction Zone', value: tier === 'very-low' || tier === 'low' ? '-' : '+10' },
         { label: 'Potholes', value: tier === 'severe' ? '+6' : '-' },
         { label: 'Lane Closures', value: tier === 'high' || tier === 'severe' ? '+4' : '-' },
       ],
@@ -72,65 +54,108 @@ async function mockPredict(roadQuery: string): Promise<AiReport> {
     {
       name: 'Historical (A)',
       weight: 'x 0.30',
-      score: tier === 'low' ? 10 : tier === 'moderate' ? 20 : tier === 'high' ? 22 : 24,
+      score: tier === 'very-low' ? 8 : tier === 'low' ? 10 : tier === 'moderate' ? 20 : tier === 'high' ? 22 : 24,
       maxPoints: 25,
-      color: tier === 'low' ? 'var(--risk-mod)' : 'var(--risk-high)',
+      color: tier === 'very-low' ? 'var(--risk-low)' : tier === 'low' ? 'var(--risk-mod)' : 'var(--risk-high)',
       details: [
-        { label: 'Crashes / Year', value: tier === 'low' ? '62' : tier === 'moderate' ? '127' : tier === 'high' ? '151' : '188' },
-        { label: 'County Percentile', value: tier === 'low' ? '54th' : tier === 'moderate' ? '80th' : tier === 'high' ? '89th' : '96th' },
+        { label: 'Crashes / Year', value: tier === 'very-low' ? '38' : tier === 'low' ? '62' : tier === 'moderate' ? '127' : tier === 'high' ? '151' : '188' },
+        { label: 'County Percentile', value: tier === 'very-low' ? '32nd' : tier === 'low' ? '54th' : tier === 'moderate' ? '80th' : tier === 'high' ? '89th' : '96th' },
         { label: 'Data Source', value: 'CRIS' },
       ],
     },
     {
       name: 'Environmental (E)',
       weight: 'x 0.20',
-      score: tier === 'low' ? 7 : tier === 'moderate' ? 12 : tier === 'high' ? 17 : 19,
+      score: tier === 'very-low' ? 5 : tier === 'low' ? 7 : tier === 'moderate' ? 12 : tier === 'high' ? 17 : 19,
       maxPoints: 25,
-      color: tier === 'low' ? 'var(--risk-low)' : tier === 'moderate' ? 'var(--risk-mod)' : 'var(--risk-high)',
+      color: tier === 'very-low' || tier === 'low' ? 'var(--risk-low)' : tier === 'moderate' ? 'var(--risk-mod)' : 'var(--risk-high)',
       details: [
-        { label: 'Heavy Rain', value: tier === 'low' ? '+2' : tier === 'moderate' ? '+8' : '+11' },
-        { label: 'Low Lighting', value: tier === 'low' ? '+1' : '+4' },
+        { label: 'Heavy Rain', value: tier === 'very-low' || tier === 'low' ? '+2' : tier === 'moderate' ? '+8' : '+11' },
+        { label: 'Low Lighting', value: tier === 'very-low' || tier === 'low' ? '+1' : '+4' },
         { label: 'Source', value: 'weather.gov' },
       ],
     },
     {
       name: 'Traffic (T)',
       weight: 'x 0.15',
-      score: tier === 'low' ? 9 : tier === 'moderate' ? 12 : tier === 'high' ? 15 : 18,
+      score: tier === 'very-low' ? 6 : tier === 'low' ? 9 : tier === 'moderate' ? 12 : tier === 'high' ? 15 : 18,
       maxPoints: 20,
-      color: tier === 'low' ? 'var(--risk-mod)' : 'var(--risk-high)',
+      color: tier === 'very-low' ? 'var(--risk-low)' : tier === 'low' ? 'var(--risk-mod)' : 'var(--risk-high)',
       details: [
-        { label: 'High Density', value: tier === 'low' ? '+4' : tier === 'moderate' ? '+8' : '+12' },
+        { label: 'High Density', value: tier === 'very-low' ? '+2' : tier === 'low' ? '+4' : tier === 'moderate' ? '+8' : '+12' },
         { label: 'Near Intersection', value: '+4' },
         { label: 'Source', value: 'TxDOT AADT' },
       ],
     },
   ]
+}
+
+function createMonthlyHistory(score: number) {
+  const base = Math.max(28, Math.round(score * 0.7))
+  const heights: [number, number, number, number, number, number, number, number, number, number, number, number] = [
+    base - 14,
+    base - 18,
+    base - 6,
+    base + 4,
+    base + 8,
+    base + 12,
+    base - 2,
+    base - 4,
+    base - 8,
+    base + 15,
+    base + 6,
+    base + 18,
+  ]
+
+  return [
+    { month: 'Jan', height: `${Math.min(100, Math.max(18, heights[0]))}%`, color: 'var(--risk-low)' },
+    { month: 'Feb', height: `${Math.min(100, Math.max(18, heights[1]))}%`, color: 'var(--risk-low)' },
+    { month: 'Mar', height: `${Math.min(100, Math.max(18, heights[2]))}%`, color: 'var(--risk-mod)' },
+    { month: 'Apr', height: `${Math.min(100, Math.max(18, heights[3]))}%`, color: 'var(--risk-mod)' },
+    { month: 'May', height: `${Math.min(100, Math.max(18, heights[4]))}%`, color: 'var(--risk-high)' },
+    { month: 'Jun', height: `${Math.min(100, Math.max(18, heights[5]))}%`, color: 'var(--risk-high)' },
+    { month: 'Jul', height: `${Math.min(100, Math.max(18, heights[6]))}%`, color: 'var(--risk-mod)' },
+    { month: 'Aug', height: `${Math.min(100, Math.max(18, heights[7]))}%`, color: 'var(--risk-mod)' },
+    { month: 'Sep', height: `${Math.min(100, Math.max(18, heights[8]))}%`, color: 'var(--risk-mod)' },
+    { month: 'Oct', height: `${Math.min(100, Math.max(18, heights[9]))}%`, color: 'var(--risk-severe)' },
+    { month: 'Nov', height: `${Math.min(100, Math.max(18, heights[10]))}%`, color: 'var(--risk-high)' },
+    { month: 'Dec', height: `${Math.min(100, Math.max(18, heights[11]))}%`, color: 'var(--risk-severe)' },
+  ]
+}
+
+function formatCoordinate(value: number, positive: string, negative: string): string {
+  const abs = Math.abs(value).toFixed(4)
+  return `${abs} deg ${value >= 0 ? positive : negative}`
+}
+
+function buildSummary(tier: RiskTier, roadQuery: string): string {
+  const summary: Record<RiskTier, string> = {
+    'very-low': `${roadQuery} is currently scoring well below the danger threshold. Existing signals suggest relatively stable conditions with limited pressure from weather, traffic, or historical crash patterns.`,
+    low: `${roadQuery} currently shows lower-than-average crash risk compared with nearby corridors. Conditions appear stable, though routine caution is still recommended.`,
+    moderate: `${roadQuery} shows moderate crash risk right now, with enough environmental or historical pressure to merit extra attention before driving.`,
+    high: `${roadQuery} is showing elevated crash risk due to a stronger combination of traffic pressure, incident history, and environmental conditions.`,
+    severe: `${roadQuery} is showing very high crash risk right now. Avoid the segment if possible or use extreme caution and slower travel speeds.`,
+  }
+
+  return summary[tier]
+}
+
+async function loadReport(roadQuery: string, lat: number, lng: number): Promise<AiReport> {
+  const response = await predictRisk({ latitude: lat, longitude: lng })
+  const score = Math.round(response.risk_score * 100)
+  const tier = getTier(score)
 
   return {
     road: roadQuery,
-    segment: 'Near Exit 233',
-    coordinates: '30.2672°N, 97.7431°W',
-    updatedAt: 'Updated 3 min ago',
+    segment: 'Geocoded report area',
+    coordinates: `${formatCoordinate(lat, 'N', 'S')}, ${formatCoordinate(lng, 'E', 'W')}`,
+    updatedAt: 'Live backend response',
     tier,
-    score: scoreByTier[tier],
-    summary: summary[tier],
-    warning: 'Traffic sensors unavailable for this segment - using the nearest TxDOT AADT estimate.',
-    components,
-    monthlyHistory: [
-      { month: 'Jan', height: '60%', color: 'var(--risk-low)' },
-      { month: 'Feb', height: '55%', color: 'var(--risk-low)' },
-      { month: 'Mar', height: '70%', color: 'var(--risk-mod)' },
-      { month: 'Apr', height: '80%', color: 'var(--risk-mod)' },
-      { month: 'May', height: '85%', color: 'var(--risk-high)' },
-      { month: 'Jun', height: '90%', color: 'var(--risk-high)' },
-      { month: 'Jul', height: '75%', color: 'var(--risk-mod)' },
-      { month: 'Aug', height: '70%', color: 'var(--risk-mod)' },
-      { month: 'Sep', height: '65%', color: 'var(--risk-mod)' },
-      { month: 'Oct', height: '95%', color: 'var(--risk-severe)' },
-      { month: 'Nov', height: '80%', color: 'var(--risk-high)' },
-      { month: 'Dec', height: '100%', color: 'var(--risk-severe)' },
-    ],
+    score,
+    summary: buildSummary(tier, roadQuery),
+    warning: 'Detailed factor breakdown is still a frontend placeholder until the backend returns component-level AI outputs.',
+    components: createComponentDetails(tier),
+    monthlyHistory: createMonthlyHistory(score),
   }
 }
 
@@ -143,11 +168,17 @@ async function run() {
     return
   }
 
+  if (!hasCoordinates.value) {
+    error.value = 'This report needs coordinates. Search from the Home page so the backend can score the selected location.'
+    return
+  }
+
   loading.value = true
   try {
-    report.value = await mockPredict(q.value)
-  } catch {
-    error.value = 'Failed to generate report. Please try again.'
+    report.value = await loadReport(q.value, latitude.value, longitude.value)
+  } catch (err) {
+    console.error(err)
+    error.value = err instanceof Error ? err.message : 'Failed to generate report. Please try again.'
   } finally {
     loading.value = false
   }
@@ -182,7 +213,7 @@ watchEffect(() => {
             <ScoreRing :score="report.score" :tier="report.tier" size="lg" />
           </div>
           <div class="mt-[10px] font-mono text-[10px] uppercase tracking-[0.08em] text-text-2">Road Risk Score</div>
-          <div class="mt-[6px]"><RiskBadge :tier="report.tier" :label="tierToLabel[report.tier]" /></div>
+          <div class="mt-[6px]"><RiskBadge :tier="report.tier" :label="`${getTierLabel(report.tier)} Risk`" /></div>
         </div>
 
         <div class="flex-1">
@@ -230,7 +261,7 @@ watchEffect(() => {
             <div class="text-[14px] font-semibold">Crash History - {{ report.road }}</div>
             <div class="text-[12px] text-text-2">Monthly average from CRIS data, 2020-2024</div>
           </div>
-          <RiskBadge :tier="report.tier" label="127 avg/year" />
+          <RiskBadge :tier="report.tier" label="Projected trend" />
         </div>
         <div class="mt-4 grid h-[100px] grid-cols-12 items-end gap-[6px]">
           <div v-for="bar in report.monthlyHistory" :key="bar.month" class="flex h-full flex-col items-center gap-[6px]">
@@ -246,11 +277,11 @@ watchEffect(() => {
             <div class="text-[14px] font-semibold">Live Alerts</div>
             <div class="text-[12px] text-text-2">Road closures, severe weather, and incident reports</div>
           </div>
-          <RiskBadge tier="low" label="None" />
+          <RiskBadge tier="low" label="Pending feed" />
         </div>
         <div class="mt-3 rounded-[12px] border border-dashed border-border-0 bg-[rgba(10,123,101,0.04)] px-3 py-4">
-          <div class="mb-1 text-[12px] font-bold text-text-0">No active alerts in this area</div>
-          <div class="text-[11px] leading-[1.45] text-text-1">If new incidents occur, they will appear here as they are reported.</div>
+          <div class="mb-1 text-[12px] font-bold text-text-0">Live incident feed not connected yet</div>
+          <div class="text-[11px] leading-[1.45] text-text-1">This section is ready for future backend alert and road closure data once those routes are available.</div>
         </div>
       </section>
     </div>
