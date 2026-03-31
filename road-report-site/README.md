@@ -42,3 +42,13 @@ Router is configured such that anything that isn't a specific page redirects to 
 Title bar doesn't automatically change with router, though we'll want to pull in info so that it does  
 Bounds are passed as queries from the router to the maps  
 Try not to over-submit so we don't get timed out
+
+## Backend Integration
+
+Create a `.env` file in this folder when running against the backend:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+The report page expects geocoded `q`, `lat`, and `lng` query params and calls `POST /api/v1/risk/predict`.
