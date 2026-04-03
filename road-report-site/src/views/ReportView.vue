@@ -141,7 +141,11 @@ function buildSummary(tier: RiskTier, roadQuery: string): string {
 }
 
 async function loadReport(roadQuery: string, lat: number, lng: number): Promise<AiReport> {
-  const response = await predictRisk({ latitude: lat, longitude: lng })
+  const response = await predictRisk({
+    latitude: lat,
+    longitude: lng,
+    road_name: roadQuery,
+  })
   const score = Math.round(response.risk_score * 100)
   const tier = getTier(score)
 

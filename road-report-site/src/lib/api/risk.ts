@@ -1,6 +1,9 @@
 export interface PredictRiskRequest {
   latitude: number
   longitude: number
+  road_name?: string
+  road_class?: string
+  weather_condition?: string
 }
 
 export interface PredictRiskResponse {
