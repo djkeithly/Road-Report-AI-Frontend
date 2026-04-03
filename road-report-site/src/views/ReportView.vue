@@ -5,6 +5,7 @@ import RiskBadge from '@/components/RiskBadge.vue'
 import ScoreRing from '@/components/ScoreRing.vue'
 import { getTier, getTierLabel } from '@/composables/useRiskScore'
 import { predictRisk } from '@/lib/api/risk'
+import { createUserReport } from '@/lib/api/reports'
 import type { RiskTier } from '@/types/risk'
 
 type AiReport = {
@@ -36,6 +37,11 @@ const hasCoordinates = computed(() => Number.isFinite(latitude.value) && Number.
 const loading = ref(false)
 const error = ref<string | null>(null)
 const report = ref<AiReport | null>(null)
+const reportIssueType = ref<'pothole' | 'flooding' | 'debris' | 'construction' | 'signal_outage' | 'other'>('other')
+const reportDescription = ref('')
+const reportSubmitting = ref(false)
+const reportSubmitMessage = ref<string | null>(null)
+const reportSubmitError = ref<string | null>(null)
 
 function createComponentDetails(tier: RiskTier) {
   return [
@@ -188,6 +194,38 @@ async function run() {
   }
 }
 
+async function submitUserReport() {
+  reportSubmitMessage.value = null
+  reportSubmitError.value = null
+  if (!q.value) {
+    reportSubmitError.value = 'Search a road first so your report includes a location.'
+    return
+  }
+  if (reportDescription.value.trim().length < 4) {
+    reportSubmitError.value = 'Please provide a short description (at least 4 characters).'
+    return
+  }
+
+  reportSubmitting.value = true
+  try {
+    const response = await createUserReport({
+      road_name: q.value,
+      issue_type: reportIssueType.value,
+      description: reportDescription.value.trim(),
+      latitude: hasCoordinates.value ? latitude.value : undefined,
+      longitude: hasCoordinates.value ? longitude.value : undefined,
+    })
+    reportDescription.value = ''
+    reportIssueType.value = 'other'
+    reportSubmitMessage.value = `Thanks — report #${response.id} was saved.`
+  } catch (err) {
+    console.error(err)
+    reportSubmitError.value = err instanceof Error ? err.message : 'Failed to save report.'
+  } finally {
+    reportSubmitting.value = false
+  }
+}
+
 watchEffect(() => {
   if (q.value) run()
 })
@@ -278,15 +316,52 @@ watchEffect(() => {
       <section class="rounded-[16px] border border-border-0 bg-bg-card p-5 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <div class="text-[14px] font-semibold">Live Alerts</div>
-            <div class="text-[12px] text-text-2">Road closures, severe weather, and incident reports</div>
+            <div class="text-[14px] font-semibold">Report Road Issue</div>
+            <div class="text-[12px] text-text-2">Submit a quick issue report to help improve local safety data.</div>
           </div>
-          <RiskBadge tier="low" label="Pending feed" />
+          <RiskBadge tier="low" label="Simple storage" />
         </div>
-        <div class="mt-3 rounded-[12px] border border-dashed border-border-0 bg-[rgba(10,123,101,0.04)] px-3 py-4">
-          <div class="mb-1 text-[12px] font-bold text-text-0">Live incident feed not connected yet</div>
-          <div class="text-[11px] leading-[1.45] text-text-1">This section is ready for future backend alert and road closure data once those routes are available.</div>
-        </div>
+        <form class="mt-3 space-y-2" @submit.prevent="submitUserReport">
+          <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
+            <input
+              :value="q"
+              disabled
+              class="rounded-[10px] border border-border-0 bg-bg-1 px-3 py-2 text-[12px] text-text-1"
+              aria-label="Road"
+            />
+            <select
+              v-model="reportIssueType"
+              class="rounded-[10px] border border-border-0 bg-bg-1 px-3 py-2 text-[12px] text-text-0"
+              aria-label="Issue type"
+            >
+              <option value="pothole">Pothole</option>
+              <option value="flooding">Flooding</option>
+              <option value="debris">Debris</option>
+              <option value="construction">Construction</option>
+              <option value="signal_outage">Signal Outage</option>
+              <option value="other">Other</option>
+            </select>
+            <button
+              type="submit"
+              :disabled="reportSubmitting"
+              class="rounded-[10px] bg-accent px-3 py-2 text-[12px] font-semibold text-text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {{ reportSubmitting ? 'Saving...' : 'Submit Report' }}
+            </button>
+          </div>
+          <textarea
+            v-model="reportDescription"
+            rows="3"
+            placeholder="Describe what you observed..."
+            class="w-full rounded-[10px] border border-border-0 bg-bg-1 px-3 py-2 text-[12px] text-text-0"
+          />
+          <div v-if="reportSubmitMessage" class="text-[12px] text-green-600">
+            {{ reportSubmitMessage }}
+          </div>
+          <div v-if="reportSubmitError" class="text-[12px] text-red-500">
+            {{ reportSubmitError }}
+          </div>
+        </form>
       </section>
     </div>
   </div>
