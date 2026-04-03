@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Map, LngLatBounds } from 'maplibre-gl';
 import type { Feature, Geometry } from "geojson";
 
@@ -27,19 +27,23 @@ interface OverpassResponse {
 
 // 2. Setup Router and State
 const route = useRoute();
-const router = useRouter();
 const mapContainer = ref<HTMLElement | null>(null);
 let map: Map | null = null;
 const errorMessage = ref<string | null>(null);
 const isLoading = ref(false); // Controls the new spinner
 
-const utdBounds = [-96.765, 32.975, -96.735, 32.995];
+type Bounds = [number, number, number, number];
 
-const getBoundsFromRoute = (): number[] => {
+const utdBounds: Bounds = [-96.765, 32.975, -96.735, 32.995];
+
+const isBounds = (value: number[]): value is Bounds =>
+  value.length === 4 && value.every((n) => Number.isFinite(n));
+
+const getBoundsFromRoute = (): Bounds => {
   const boundsQuery = route.query.bounds;
   if (typeof boundsQuery === 'string') {
     const parsed = boundsQuery.split(',').map(Number);
-    if (parsed.length === 4 && parsed.every(n => !isNaN(n))) {
+    if (isBounds(parsed)) {
       return parsed;
     }
   }
@@ -63,7 +67,7 @@ const getRoadColor = (highwayType: string): string => {
 };
 
 // 3. Fetch Data using Overpass API
-const fetchAndHighlightRoads = async (bounds: number[]) => {
+const fetchAndHighlightRoads = async (bounds: Bounds) => {
   const [w, s, e, n] = bounds;
   errorMessage.value = null;
   isLoading.value = true;
