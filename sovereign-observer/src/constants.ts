@@ -4,21 +4,7 @@ import {
   FileText, 
   Zap, 
   Archive, 
-  LifeBuoy, 
-  UserCircle,
-  Search,
-  Bell,
-  Settings,
-  MessageSquare,
-  ChevronRight,
-  ArrowRight,
-  ShieldCheck,
-  Activity,
-  Map as MapIcon,
-  AlertTriangle,
-  Clock,
-  Thermometer,
-  Layers
+  Map as MapIcon
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
