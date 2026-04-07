@@ -1,0 +1,39 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+@import "@fontsource/outfit/700.css";
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0A705E;
+  --color-secondary: #1B2421;
+  --color-tertiary: #ECF0ED;
+  --color-accent: #14B8A6;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-[#F8FAF9] text-secondary font-sans;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-tertiary rounded-2xl shadow-sm;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-all active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-secondary border border-tertiary px-6 py-3 rounded-lg font-medium hover:bg-tertiary transition-all active:scale-95;
+  }
+}
