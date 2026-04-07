@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, 
   Bell, 
   Settings, 
   MessageSquare, 
-  UserCircle,
-  Menu,
+  Moon,
+  Sun,
   X,
   ArrowRight,
   ShieldCheck,
@@ -16,7 +16,6 @@ import {
   Clock,
   Thermometer,
   Layers,
-  ChevronRight,
   Download,
   LifeBuoy,
   Zap,
@@ -40,7 +39,17 @@ import { Page } from './types';
 
 // --- Components ---
 
-const Navbar = ({ activePage, onPageChange }: { activePage: Page, onPageChange: (page: Page) => void }) => {
+const Navbar = ({
+  activePage,
+  onPageChange,
+  theme,
+  onToggleTheme,
+}: {
+  activePage: Page
+  onPageChange: (page: Page) => void
+  theme: 'light' | 'dark'
+  onToggleTheme: () => void
+}) => {
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-tertiary z-50 px-6 flex items-center justify-between">
       <div className="flex items-center gap-8">
@@ -85,12 +94,17 @@ const Navbar = ({ activePage, onPageChange }: { activePage: Page, onPageChange: 
         <button className="p-2 text-secondary/60 hover:text-primary transition-colors">
           <Settings className="w-5 h-5" />
         </button>
+        <button
+          onClick={onToggleTheme}
+          className="flex items-center gap-2 rounded-lg border border-tertiary bg-white/80 px-3 py-2 text-sm font-medium text-secondary/70 transition-all hover:text-primary"
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+        >
+          {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+          <span className="hidden sm:inline">{theme === 'light' ? 'Dark' : 'Light'}</span>
+        </button>
         <button className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-all">
           <MessageSquare className="w-4 h-4" />
           <span>AI Chat</span>
-        </button>
-        <button className="w-8 h-8 rounded-full overflow-hidden border border-tertiary">
-          <img src="https://picsum.photos/seed/user/100/100" alt="User" referrerPolicy="no-referrer" />
         </button>
       </div>
     </nav>
@@ -132,10 +146,6 @@ const Sidebar = ({ activeItem, onSelectItem }: { activeItem: string, onSelectIte
         <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-secondary/60 hover:text-secondary hover:bg-tertiary/50 transition-all">
           <LifeBuoy className="w-4 h-4 text-secondary/40" />
           Support
-        </button>
-        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-secondary/60 hover:text-secondary hover:bg-tertiary/50 transition-all">
-          <UserCircle className="w-4 h-4 text-secondary/40" />
-          Account
         </button>
       </div>
     </aside>
@@ -739,6 +749,19 @@ const MethodologyPage = () => {
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('landing');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light';
+    return window.localStorage.getItem('sovereign-theme') === 'dark' ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('sovereign-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((current) => current === 'light' ? 'dark' : 'light');
+  };
 
   const renderPage = () => {
     switch (activePage) {
@@ -756,8 +779,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAF9]">
-      <Navbar activePage={activePage} onPageChange={setActivePage} />
+    <div className={`min-h-screen bg-[#F8FAF9] sovereign-app theme-${theme}`}>
+      <Navbar
+        activePage={activePage}
+        onPageChange={setActivePage}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
       
       <AnimatePresence mode="wait">
         <motion.div
