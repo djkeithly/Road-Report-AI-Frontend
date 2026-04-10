@@ -1,31 +1,29 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import maplibregl from 'maplibre-gl';
 import {
   Activity,
   AlertTriangle,
   ArrowRight,
-  Bell,
-  Clock,
-  Download,
   FileText,
-  Layers,
-  LifeBuoy,
   Map as MapIcon,
   MessageSquare,
   Moon,
   Search,
-  Settings,
   ShieldCheck,
   Sun,
   Thermometer,
-  X,
   Zap,
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { cn } from './lib/utils';
-import { LANDING_STATS, NAV_ITEMS, SIDEBAR_ITEMS } from './constants';
+import { LANDING_STATS, NAV_ITEMS, TEAM_MEMBERS } from './constants';
 import { geocodeLocation, predictRisk } from './lib/risk';
 import type { Incident, LiveReport, Page, RiskTier } from './types';
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
 
 function getRiskTier(score: number): RiskTier {
   if (score >= 75) return 'Critical';
@@ -47,6 +45,19 @@ function getRiskTone(tier: RiskTier): string {
   }
 }
 
+function getRiskBg(tier: RiskTier): string {
+  switch (tier) {
+    case 'Critical':
+      return 'bg-red-500';
+    case 'High':
+      return 'bg-orange-500';
+    case 'Moderate':
+      return 'bg-primary';
+    default:
+      return 'bg-emerald-500';
+  }
+}
+
 function buildSummary(tier: RiskTier, query: string, apiMessage: string): string {
   const summary: Record<RiskTier, string> = {
     Low: `${query} is currently reading below the regional danger threshold.`,
@@ -56,6 +67,10 @@ function buildSummary(tier: RiskTier, query: string, apiMessage: string): string
   };
   return apiMessage?.trim() ? `${summary[tier]} ${apiMessage}` : summary[tier];
 }
+
+/* ------------------------------------------------------------------ */
+/*  Navbar                                                             */
+/* ------------------------------------------------------------------ */
 
 const Navbar = ({
   activePage,
@@ -82,7 +97,9 @@ const Navbar = ({
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
           <ShieldCheck className="h-5 w-5 text-white" />
         </div>
-        <span className="font-display text-xl font-bold tracking-tight text-secondary">Sovereign Observer</span>
+        <span className="font-display text-xl font-bold tracking-tight text-secondary">
+          Road Report <span className="font-medium italic text-primary">AI</span>
+        </span>
       </button>
       <div className="hidden items-center gap-6 md:flex">
         {NAV_ITEMS.map((item) => (
@@ -116,8 +133,6 @@ const Navbar = ({
           className="w-64 rounded-full border-none bg-tertiary/50 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20"
         />
       </form>
-      <button className="p-2 text-secondary/60 hover:text-primary"><Bell className="h-5 w-5" /></button>
-      <button className="p-2 text-secondary/60 hover:text-primary"><Settings className="h-5 w-5" /></button>
       <button
         onClick={onToggleTheme}
         className="flex items-center gap-2 rounded-lg border border-tertiary bg-white/80 px-3 py-2 text-sm font-medium text-secondary/70 hover:text-primary"
@@ -130,75 +145,90 @@ const Navbar = ({
         disabled={isLoading}
         className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-70"
       >
-        <MessageSquare className="h-4 w-4" />
+        <Search className="h-4 w-4" />
         <span>{isLoading ? 'Analyzing...' : 'Analyze Route'}</span>
       </button>
     </div>
   </nav>
 );
 
-const Sidebar = ({ activeItem, onSelectItem }: { activeItem: string; onSelectItem: (id: string) => void }) => (
-  <aside className="fixed left-0 top-16 flex h-[calc(100vh-4rem)] w-64 flex-col justify-between border-r border-tertiary bg-[#F8FAF9] p-6">
-    <div>
-      <div className="mb-8">
-        <h3 className="mb-4 text-[10px] font-bold uppercase tracking-widest text-secondary/40">System Intelligence</h3>
-        <div className="space-y-1">
-          {SIDEBAR_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onSelectItem(item.id)}
-              className={cn(
-                'w-full rounded-lg px-3 py-2 text-left text-sm font-medium',
-                activeItem === item.id ? 'border border-tertiary bg-white text-primary shadow-sm' : 'text-secondary/60 hover:bg-tertiary/50 hover:text-secondary',
-              )}
-            >
-              <span className="flex items-center gap-3">
-                <item.icon className={cn('h-4 w-4', activeItem === item.id ? 'text-primary' : 'text-secondary/40')} />
-                {item.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-      <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-bold text-white hover:bg-primary/90">
-        <X className="h-4 w-4 rotate-45" />
-        NEW REPORT
-      </button>
-    </div>
-    <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-secondary/60 hover:bg-tertiary/50 hover:text-secondary">
-      <LifeBuoy className="h-4 w-4 text-secondary/40" />
-      Support
-    </button>
-  </aside>
-);
+/* ------------------------------------------------------------------ */
+/*  Hero Mini Map                                                      */
+/* ------------------------------------------------------------------ */
+
+const HeroMiniMap = () => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors',
+          },
+        },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+      },
+      center: [-99.9018, 31.5], // Texas
+      zoom: 5.2,
+      interactive: false,
+      attributionControl: false,
+    });
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  return <div ref={containerRef} className="absolute inset-0 h-full w-full" />;
+};
+
+/* ------------------------------------------------------------------ */
+/*  Landing Page                                                       */
+/* ------------------------------------------------------------------ */
 
 const LandingPage = ({
   searchQuery,
   onSearchQueryChange,
   onSearchSubmit,
-  onOpenMethodology,
+  onPageChange,
   isLoading,
   error,
 }: {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
-  onSearchSubmit: () => void;
-  onOpenMethodology: () => void;
+  onSearchSubmit: (query?: string) => void;
+  onPageChange: (page: Page) => void;
   isLoading: boolean;
   error: string | null;
 }) => (
   <div className="mx-auto max-w-7xl px-6 pb-20 pt-24">
+    {/* Hero */}
     <div className="mb-24 grid items-center gap-12 lg:grid-cols-2">
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
         <div className="mb-6 flex items-center gap-2">
           <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Live Network Intelligence Active</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+            Live Prediction Engine Active
+          </span>
         </div>
-        <h1 className="mb-8 text-6xl font-display font-bold leading-[1.1] text-secondary lg:text-7xl">
+        <h1 className="mb-8 font-display text-6xl font-bold leading-[1.1] text-secondary lg:text-7xl">
           Know your risk <span className="font-medium italic text-primary">before</span> you drive.
         </h1>
         <p className="mb-8 max-w-lg text-lg leading-relaxed text-secondary/60">
-          Search any road, city, or corridor and generate a live crash-risk report using the existing backend model.
+          AI-powered crash risk predictions for Texas roads, using historical accident data, real-time weather, and
+          traffic analysis.
         </p>
         <form
           className="mb-4 flex max-w-xl flex-col gap-3 rounded-2xl border border-tertiary bg-white/85 p-3 shadow-xl md:flex-row"
@@ -219,256 +249,600 @@ const LandingPage = ({
           </button>
         </form>
         {error ? <p className="mb-4 text-sm text-red-500">{error}</p> : null}
-        <div className="flex flex-wrap gap-4">
-          <button onClick={onSearchSubmit} className="btn-primary flex items-center gap-2">
-            Launch Live Report
-            <ArrowRight className="h-4 w-4" />
-          </button>
-          <button onClick={onOpenMethodology} className="btn-secondary">View Methodology</button>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {['I-35, Austin', 'US-290, Houston', 'Loop 1604, San Antonio', 'SH-130, Georgetown'].map((hint) => (
+            <button
+              key={hint}
+              onClick={() => {
+                onSearchQueryChange(hint);
+                onSearchSubmit(hint);
+              }}
+              className="rounded-full border border-tertiary px-3 py-1.5 text-xs text-secondary/50 transition-all hover:border-primary hover:text-primary"
+            >
+              {hint}
+            </button>
+          ))}
         </div>
       </motion.div>
 
-      <div className="relative aspect-square overflow-hidden rounded-3xl bg-tertiary shadow-2xl">
-        <img src="https://picsum.photos/seed/map-abstract/800/800" alt="Risk Map Preview" className="h-full w-full object-cover grayscale opacity-80" referrerPolicy="no-referrer" />
-        <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent" />
-        <div className="absolute right-8 top-8 w-48 rounded-xl border border-tertiary bg-white p-4 shadow-xl">
+      <div className="relative aspect-square overflow-hidden rounded-3xl bg-secondary shadow-2xl">
+        <HeroMiniMap />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-secondary/70 via-secondary/30 to-primary/20" />
+        <div className="pointer-events-none absolute right-8 top-8 w-48 rounded-xl border border-white/15 bg-white/10 p-4 shadow-xl backdrop-blur-md">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[10px] font-bold text-secondary/40">MODEL READY</span>
-            <span className="text-[10px] font-bold text-primary">LIVE</span>
+            <span className="text-[10px] font-bold text-white/60">MODEL STATUS</span>
+            <span className="text-[10px] font-bold text-emerald-400">LIVE</span>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-tertiary"><div className="h-full w-[94%] bg-primary" /></div>
+          <div className="h-1.5 w-full rounded-full bg-white/10">
+            <div className="h-full w-[94%] rounded-full bg-primary" />
+          </div>
         </div>
-        <div className="absolute bottom-8 left-8 max-w-[240px] rounded-xl bg-primary p-6 text-white shadow-xl">
+        <div className="pointer-events-none absolute bottom-8 left-8 max-w-[240px] rounded-xl bg-primary p-6 text-white shadow-xl">
           <div className="mb-3 flex items-center gap-2">
             <Zap className="h-4 w-4" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Backend connected</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest">Backend Connected</span>
           </div>
-          <p className="text-sm font-medium leading-snug">Route search now uses live geocoding plus the legacy risk prediction API.</p>
+          <p className="text-sm font-medium leading-snug">
+            Search uses live geocoding + PyTorch risk prediction API.
+          </p>
         </div>
       </div>
     </div>
 
+    {/* Stats */}
     <div className="mb-20 grid gap-12 md:grid-cols-3">
       {LANDING_STATS.map((stat) => (
         <div key={stat.label}>
-          <div className="mb-2 text-4xl font-display font-bold text-primary">{stat.value}</div>
+          <div className="mb-2 font-display text-4xl font-bold text-primary">{stat.value}</div>
           <div className="mb-4 text-[10px] font-bold uppercase tracking-widest text-secondary/40">{stat.label}</div>
           <p className="text-sm leading-relaxed text-secondary/60">{stat.description}</p>
         </div>
       ))}
     </div>
+
+    {/* Feature cards */}
+    <div className="mb-20 grid gap-8 md:grid-cols-3">
+      {[
+        {
+          icon: Activity,
+          title: 'Real-Time Analysis',
+          desc: 'Live weather from weather.gov and TxDOT traffic data feed into crash risk predictions updated in real time.',
+        },
+        {
+          icon: MapIcon,
+          title: 'Interactive Risk Map',
+          desc: 'Visual risk scoring across Texas with road segment analysis via MapLibre and OpenStreetMap.',
+        },
+        {
+          icon: MessageSquare,
+          title: 'AI-Powered Reports',
+          desc: 'Search any road and get a structured safety report with risk tier, score breakdown, and driving advice.',
+        },
+      ].map((feature) => (
+        <div key={feature.title} className="glass-card p-8 transition-all hover:-translate-y-1 hover:shadow-lg">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+            <feature.icon className="h-6 w-6 text-primary" />
+          </div>
+          <h3 className="mb-2 text-lg font-bold text-secondary">{feature.title}</h3>
+          <p className="text-sm leading-relaxed text-secondary/60">{feature.desc}</p>
+        </div>
+      ))}
+    </div>
+
+    {/* CTA */}
+    <div className="rounded-3xl bg-secondary p-12 text-center shadow-2xl lg:p-16">
+      <h2 className="mb-4 font-display text-3xl font-bold text-white lg:text-4xl">Ready for a safer journey?</h2>
+      <p className="mb-8 text-sm text-white/60">
+        Search any Texas road to generate a live crash risk report.
+      </p>
+      <button onClick={onSearchSubmit} className="btn-primary">
+        Get Started →
+      </button>
+    </div>
   </div>
 );
 
+/* ------------------------------------------------------------------ */
+/*  Risk Map Page                                                      */
+/* ------------------------------------------------------------------ */
+
 const RiskMapPage = ({ report }: { report: LiveReport | null }) => {
-  const [activeSidebarItem, setActiveSidebarItem] = useState('analytics');
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
+
+  // Initialize the map once on mount
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors',
+          },
+        },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+      },
+      center: [-99.9018, 31.9686], // Texas fallback
+      zoom: 5.5,
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+  }, []);
+
+  // Move the map and drop a marker whenever the report changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !report) return;
+
+    const { latitude, longitude, bounds, tier } = report;
+
+    const tierColors: Record<RiskTier, string> = {
+      Low: '#10b981',
+      Moderate: '#0A705E',
+      High: '#f97316',
+      Critical: '#ef4444',
+    };
+
+    if (markerRef.current) markerRef.current.remove();
+    markerRef.current = new maplibregl.Marker({ color: tierColors[tier] })
+      .setLngLat([longitude, latitude])
+      .setPopup(
+        new maplibregl.Popup({ offset: 24 }).setHTML(
+          `<strong>${report.query}</strong><br/>Score: ${report.score}/100 · ${tier}`,
+        ),
+      )
+      .addTo(map);
+
+    if (bounds && bounds.length === 4) {
+      map.fitBounds(
+        [
+          [bounds[0], bounds[1]],
+          [bounds[2], bounds[3]],
+        ],
+        { padding: 80, duration: 1000, maxZoom: 15 },
+      );
+    } else {
+      map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1000 });
+    }
+  }, [report]);
+
   return (
-    <div className="flex h-screen pt-16">
-      <Sidebar activeItem={activeSidebarItem} onSelectItem={setActiveSidebarItem} />
-      <main className="ml-64 flex flex-1 flex-col overflow-hidden bg-white p-6">
+    <div className="min-h-screen pt-16">
+      <main className="p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <div className="mb-1 flex items-center gap-2">
-              <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">Live Incident Analysis</span>
-            </div>
-            <h2 className="text-3xl font-display font-bold text-secondary">{report ? report.query : 'High-Risk Convergence at Sector 7'}</h2>
+            <h2 className="font-display text-3xl font-bold text-secondary">
+              {report ? report.query : 'Search a road to view the risk map'}
+            </h2>
+            {report ? (
+              <p className="mt-1 text-sm text-secondary/60">
+                Lat {report.latitude.toFixed(4)}, Lng {report.longitude.toFixed(4)} · Score: {report.score}/100 ·{' '}
+                <span className={getRiskTone(report.tier)}>{report.tier}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-secondary/60">
+                Use the search bar above to geocode a location and generate a risk analysis.
+              </p>
+            )}
           </div>
-          <div className="glass-card flex items-center gap-3 px-4 py-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-primary text-xs font-bold text-primary">{report ? `${report.score}%` : '88%'}</div>
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">Data Veracity</div>
-              <div className="text-[10px] text-secondary/60">{report ? `Lat ${report.latitude.toFixed(4)}, Lng ${report.longitude.toFixed(4)}` : 'Cross-referenced with 4 local sensor clusters.'}</div>
+          {report ? (
+            <div className="flex items-center gap-3 rounded-xl border border-tertiary bg-white px-4 py-3 shadow-sm">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-primary font-display text-sm font-bold text-primary">
+                {report.score}%
+              </div>
+              <div>
+                <div className="text-sm font-bold text-secondary">Risk Score</div>
+                <div className={cn('text-xs font-bold', getRiskTone(report.tier))}>{report.tier}</div>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
-        <div className="relative flex-1 overflow-hidden rounded-2xl bg-secondary">
-          <img src="https://picsum.photos/seed/sector7/1200/800" alt="Map View" className="h-full w-full object-cover grayscale opacity-40" referrerPolicy="no-referrer" />
-          <div className="absolute left-6 top-6 max-w-md rounded-xl border border-white/10 bg-secondary/80 p-6 text-white backdrop-blur-md">
-            <p className="text-sm leading-relaxed opacity-80">{report ? report.summary : 'Search from the landing page to load a live backend-connected corridor report.'}</p>
-          </div>
-          <div className="absolute right-6 top-6 w-64 rounded-xl border border-tertiary bg-white p-6 shadow-xl">
-            <h4 className="mb-4 text-[10px] font-bold uppercase tracking-widest text-secondary/40">Sector Metadata</h4>
-            <div className="space-y-3">
-              <div className="flex justify-between"><span className="text-xs text-secondary/60">Risk Tier</span><span className={cn('text-xs font-bold', report ? getRiskTone(report.tier) : 'text-red-500')}>{report ? report.tier : 'Critical'}</span></div>
-              <div className="flex justify-between"><span className="text-xs text-secondary/60">Risk Score</span><span className="text-xs font-bold">{report ? `${report.score}/100` : '75/100'}</span></div>
-              <div className="flex justify-between"><span className="text-xs text-secondary/60">Segment ID</span><span className="font-mono text-xs font-bold">{report ? `TX-${Math.abs(Math.round(report.latitude * 100))}-${Math.abs(Math.round(report.longitude * 100))}` : 'TX-8852-X'}</span></div>
+
+        {/* Live MapLibre canvas */}
+        <div
+          className="relative overflow-hidden rounded-2xl border border-tertiary bg-secondary"
+          style={{ height: 'calc(100vh - 200px)' }}
+        >
+          <div ref={mapContainerRef} className="absolute inset-0 h-full w-full" />
+
+          {report ? (
+            <div className="pointer-events-none absolute left-6 top-6 max-w-md rounded-xl border border-white/10 bg-secondary/80 p-6 text-white shadow-lg backdrop-blur-md">
+              <p className="text-sm leading-relaxed opacity-90">{report.summary}</p>
             </div>
-          </div>
-          <div className="absolute bottom-6 left-6 right-6 flex items-center gap-4">
-            <div className="flex flex-1 items-center gap-6 rounded-xl border border-tertiary bg-white/90 p-4 backdrop-blur-md">
-              <div className="flex items-center gap-3 border-r border-tertiary pr-6">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary"><Clock className="h-4 w-4 text-white" /></div>
-                <div><div className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">Playback</div><div className="text-xs font-bold text-primary">{report ? 'LIVE SEARCH' : 'REAL-TIME'}</div></div>
-              </div>
-              <div className="flex flex-1 items-center gap-4">
-                <span className="text-[10px] font-bold text-secondary/40">00:00</span>
-                <div className="relative h-1.5 flex-1 rounded-full bg-tertiary"><div className="absolute inset-y-0 left-0 w-2/3 rounded-full bg-primary" /></div>
-                <span className="text-[10px] font-bold text-secondary/40">23:59</span>
-              </div>
-              <div className="flex items-center gap-2 border-l border-tertiary pl-6">
-                <button className="rounded-lg p-2 hover:bg-tertiary"><Layers className="h-4 w-4 text-secondary/60" /></button>
-                <button className="rounded-lg p-2 hover:bg-tertiary"><Settings className="h-4 w-4 text-secondary/60" /></button>
+          ) : (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="rounded-xl bg-white/90 px-8 py-6 text-center shadow-lg backdrop-blur-md">
+                <Search className="mx-auto mb-3 h-8 w-8 text-secondary/30" />
+                <p className="text-sm font-medium text-secondary/60">Search a road to populate the map</p>
               </div>
             </div>
-          </div>
+          )}
+
+          {report ? (
+            <div className="absolute right-6 top-6 w-56 rounded-xl border border-tertiary bg-white p-5 shadow-xl">
+              <h4 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-secondary/40">
+                Segment Details
+              </h4>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-xs text-secondary/60">Risk Tier</span>
+                  <span className={cn('text-xs font-bold', getRiskTone(report.tier))}>{report.tier}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-secondary/60">Score</span>
+                  <span className="text-xs font-bold">{report.score}/100</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-secondary/60">Segment</span>
+                  <span className="font-mono text-xs font-bold">
+                    TX-{Math.abs(Math.round(report.latitude * 100))}-{Math.abs(Math.round(report.longitude * 100))}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </main>
     </div>
   );
 };
 
-const SafetyReportPage = ({ report, isLoading, error }: { report: LiveReport | null; isLoading: boolean; error: string | null }) => {
-  const [activeSidebarItem, setActiveSidebarItem] = useState('road-logs');
+/* ------------------------------------------------------------------ */
+/*  Safety Report Page                                                 */
+/* ------------------------------------------------------------------ */
+
+const SafetyReportPage = ({
+  report,
+  isLoading,
+  error,
+}: {
+  report: LiveReport | null;
+  isLoading: boolean;
+  error: string | null;
+}) => {
   const incidents: Incident[] = [
     { id: '1', type: 'Multi-Vehicle Collision', date: 'MAY 14, 2024', time: '08:42 AM', severity: 'Critical', location: 'I-35 Northbound' },
     { id: '2', type: 'Secondary Surface Hazard', date: 'MAY 12, 2024', time: '11:15 PM', severity: 'Low', location: 'Segment TX-32' },
     { id: '3', type: 'Single Lane Obstruction', date: 'MAY 11, 2024', time: '04:08 PM', severity: 'Moderate', location: 'Austin Central' },
   ];
-  const ringOffset = report ? 364.4 - (364.4 * report.score) / 100 : 91.1;
+  const ringOffset = report ? 364.4 - (364.4 * report.score) / 100 : 364.4;
 
   return (
-    <div className="flex h-screen pt-16">
-      <Sidebar activeItem={activeSidebarItem} onSelectItem={setActiveSidebarItem} />
-      <main className="ml-64 flex-1 overflow-y-auto bg-[#F8FAF9] p-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-2 flex items-center gap-2">
-            <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">{report ? `Live backend report • ${report.updatedAt}` : 'Live backend report pending'}</span>
-          </div>
-          <h2 className="mb-4 text-4xl font-display font-bold text-secondary">{report ? report.query : 'Search for a route to generate a report'}</h2>
-          <p className="mb-10 max-w-3xl leading-relaxed text-secondary/60">{report ? report.summary : 'Use the new landing page search to geocode a corridor and score it against the existing backend API.'}</p>
-          {isLoading ? <div className="mb-8 rounded-xl bg-white p-5 text-sm text-secondary/60 shadow-sm">Generating AI prediction from the backend...</div> : null}
-          {error ? <div className="mb-8 rounded-xl bg-white p-5 text-sm text-red-500 shadow-sm">{error}</div> : null}
+    <div className="min-h-screen pt-16">
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        {/* Header */}
+        <div className="mb-2 flex items-center gap-2">
+          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+            {report ? `Live report · ${report.updatedAt}` : 'Awaiting search input'}
+          </span>
+        </div>
+        <h2 className="mb-4 font-display text-4xl font-bold text-secondary">
+          {report ? report.query : 'Search for a route to generate a report'}
+        </h2>
+        <p className="mb-10 max-w-3xl leading-relaxed text-secondary/60">
+          {report ? report.summary : 'Use the search bar to geocode a corridor and score it against the backend API.'}
+        </p>
 
-          <div className="mb-10 grid gap-6 md:grid-cols-2">
-            <div className="glass-card p-8">
-              <div className="mb-8 flex items-center justify-between">
-                <h4 className="text-lg font-bold">Dynamic Risk Factor</h4>
-                <div className="flex items-center gap-2 rounded bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary"><div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />ACTIVE SCAN</div>
-              </div>
-              <div className="flex items-center gap-10">
-                <div className="relative h-32 w-32">
-                  <svg className="h-full w-full -rotate-90 transform">
-                    <circle cx="64" cy="64" r="58" fill="transparent" stroke="#ECF0ED" strokeWidth="12" />
-                    <circle cx="64" cy="64" r="58" fill="transparent" stroke="#0A705E" strokeWidth="12" strokeDasharray="364.4" strokeDashoffset={ringOffset} strokeLinecap="round" />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-3xl font-display font-bold text-secondary">{report ? `${report.score}%` : '--'}</span>
-                    <span className="text-[8px] font-bold uppercase tracking-widest text-secondary/40">Risk Level</span>
-                  </div>
+        {isLoading ? (
+          <div className="mb-8 flex items-center gap-3 rounded-xl bg-white p-5 shadow-sm">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+            <span className="text-sm text-secondary/60">Generating AI prediction from the backend...</span>
+          </div>
+        ) : null}
+        {error ? <div className="mb-8 rounded-xl bg-white p-5 text-sm text-red-500 shadow-sm">{error}</div> : null}
+
+        {/* Score + Analysis */}
+        <div className="mb-10 grid gap-6 md:grid-cols-2">
+          {/* Risk Score */}
+          <div className="glass-card p-8">
+            <div className="mb-8 flex items-center justify-between">
+              <h4 className="text-lg font-bold">Risk Score</h4>
+              {report ? (
+                <div className={cn('rounded-full px-3 py-1 text-[10px] font-bold uppercase text-white', getRiskBg(report.tier))}>
+                  {report.tier}
                 </div>
-                <div className="flex-1 space-y-4">
-                  <div className="flex justify-between border-b border-tertiary pb-2"><span className="text-xs text-secondary/60">Backend tier</span><span className={cn('text-xs font-bold', report ? getRiskTone(report.tier) : 'text-secondary/40')}>{report ? report.tier : 'Waiting'}</span></div>
-                  <div className="flex justify-between border-b border-tertiary pb-2"><span className="text-xs text-secondary/60">Coordinates</span><span className="text-xs font-bold text-primary">{report ? `${report.latitude.toFixed(3)}, ${report.longitude.toFixed(3)}` : '--'}</span></div>
-                  <div className="flex justify-between border-b border-tertiary pb-2"><span className="text-xs text-secondary/60">Model status</span><span className="text-xs font-bold text-primary">{report ? 'Connected' : 'Standby'}</span></div>
-                </div>
-              </div>
+              ) : null}
             </div>
-            <div className="glass-card p-8">
-              <div className="mb-6 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><Zap className="h-5 w-5 text-primary" /></div><h4 className="text-lg font-bold">Predictive Analysis Summary</h4></div>
-              <p className="mb-6 text-sm italic leading-relaxed text-secondary/60">{report ? `"${report.apiMessage || report.summary}"` : '"Waiting for backend output."'}</p>
-              <div className="space-y-3">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">Priority Recommendation</div>
-                <div className="flex items-center gap-3"><div className="h-1.5 w-1.5 rounded-full bg-primary" /><span className="text-xs font-medium">{report?.tier === 'Critical' ? 'Delay travel or reroute to a lower-pressure corridor.' : 'Proceed with caution and monitor corridor conditions.'}</span></div>
-                <div className="flex items-center gap-3"><div className="h-1.5 w-1.5 rounded-full bg-primary" /><span className="text-xs font-medium">Use the live risk score to compare alternate routes before departure.</span></div>
+            <div className="flex items-center gap-10">
+              <div className="relative h-32 w-32">
+                <svg className="h-full w-full -rotate-90 transform">
+                  <circle cx="64" cy="64" r="58" fill="transparent" stroke="#EDE9FE" strokeWidth="12" />
+                  <circle
+                    cx="64"
+                    cy="64"
+                    r="58"
+                    fill="transparent"
+                    stroke="#6366F1"
+                    strokeWidth="12"
+                    strokeDasharray="364.4"
+                    strokeDashoffset={ringOffset}
+                    strokeLinecap="round"
+                    style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.33,1,0.68,1)' }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="font-display text-3xl font-bold text-secondary">
+                    {report ? report.score : '--'}
+                  </span>
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-secondary/40">out of 100</span>
+                </div>
+              </div>
+              <div className="flex-1 space-y-4">
+                <div className="flex justify-between border-b border-tertiary pb-2">
+                  <span className="text-xs text-secondary/60">Tier</span>
+                  <span className={cn('text-xs font-bold', report ? getRiskTone(report.tier) : 'text-secondary/40')}>
+                    {report ? report.tier : 'Waiting'}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-tertiary pb-2">
+                  <span className="text-xs text-secondary/60">Coordinates</span>
+                  <span className="text-xs font-bold text-primary">
+                    {report ? `${report.latitude.toFixed(3)}, ${report.longitude.toFixed(3)}` : '--'}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-tertiary pb-2">
+                  <span className="text-xs text-secondary/60">Model</span>
+                  <span className="text-xs font-bold text-primary">{report ? 'Connected' : 'Standby'}</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <div className="mb-6 flex items-center justify-between">
-                <h3 className="text-xl font-bold">Historical Incident Logs</h3>
-                <button className="text-[10px] font-bold uppercase tracking-widest text-primary">Export Full Archive</button>
+          {/* Analysis Summary */}
+          <div className="glass-card p-8">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <Zap className="h-5 w-5 text-primary" />
               </div>
-              <div className="space-y-4">
-                {incidents.map((incident) => (
-                  <div key={incident.id} className="glass-card flex items-center justify-between p-4 hover:border-primary/30">
-                    <div className="flex items-center gap-4">
-                      <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', incident.severity === 'Critical' ? 'bg-red-100 text-red-500' : incident.severity === 'Moderate' ? 'bg-orange-100 text-orange-500' : 'bg-primary/10 text-primary')}>
-                        <AlertTriangle className="h-5 w-5" />
-                      </div>
-                      <div><div className="text-sm font-bold text-secondary">{incident.type}</div><div className="text-[10px] font-medium text-secondary/40">{incident.date} - {incident.time}</div></div>
-                    </div>
-                    <div className="text-right">
-                      <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-secondary/40">Impact Level</div>
-                      <div className={cn('rounded px-2 py-0.5 text-[10px] font-bold uppercase text-white', incident.severity === 'Critical' ? 'bg-red-500' : incident.severity === 'Moderate' ? 'bg-orange-500' : 'bg-primary')}>{incident.severity}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <h4 className="text-lg font-bold">Analysis Summary</h4>
             </div>
-            <div className="glass-card bg-tertiary/30 p-6">
-              <h3 className="mb-6 text-xl font-bold">Actionable Directives</h3>
-              <div className="space-y-6">
-                <div>
-                  <span className="rounded bg-secondary px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-white">Driver Focus</span>
-                  <h4 className="mb-2 mt-2 text-sm font-bold">Maintain Merging</h4>
-                  <p className="text-xs leading-relaxed text-secondary/60">{report?.tier === 'Critical' ? 'Current model output suggests delaying aggressive merges and increasing following distance beyond the normal baseline.' : 'Maintain a clean merge pattern and avoid abrupt braking near intersections and lane shifts.'}</p>
-                </div>
-                <div>
-                  <span className="rounded bg-primary px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-white">Environmental Advisory</span>
-                  <h4 className="mb-2 mt-2 text-sm font-bold">Backend-Informed Route Signal</h4>
-                  <p className="text-xs leading-relaxed text-secondary/60">This report is generated from the live backend score instead of static mock data.</p>
-                </div>
+            <p className="mb-6 text-sm italic leading-relaxed text-secondary/60">
+              {report ? `"${report.apiMessage || report.summary}"` : '"Waiting for backend output."'}
+            </p>
+            <div className="space-y-3">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">Recommendations</div>
+              <div className="flex items-center gap-3">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="text-xs font-medium">
+                  {report?.tier === 'Critical'
+                    ? 'Delay travel or reroute to a lower-pressure corridor.'
+                    : 'Proceed with caution and monitor corridor conditions.'}
+                </span>
               </div>
-              <button className="mt-10 flex w-full items-center justify-center gap-2 rounded-lg border border-tertiary bg-white py-3 text-xs font-bold text-secondary hover:bg-tertiary"><Download className="h-4 w-4" />Download Safety PDF</button>
+              <div className="flex items-center gap-3">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="text-xs font-medium">
+                  Compare alternate routes using the risk score before departure.
+                </span>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Incident Logs */}
+        {report ? (
+          <div>
+            <h3 className="mb-6 text-xl font-bold">Historical Incident Logs</h3>
+            <div className="space-y-4">
+              {incidents.map((incident) => (
+                <div key={incident.id} className="glass-card flex items-center justify-between p-4">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-lg',
+                        incident.severity === 'Critical'
+                          ? 'bg-red-100 text-red-500'
+                          : incident.severity === 'Moderate'
+                            ? 'bg-orange-100 text-orange-500'
+                            : 'bg-primary/10 text-primary',
+                      )}
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-secondary">{incident.type}</div>
+                      <div className="text-[10px] font-medium text-secondary/40">
+                        {incident.date} · {incident.time}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className={cn(
+                      'rounded px-2 py-0.5 text-[10px] font-bold uppercase text-white',
+                      incident.severity === 'Critical'
+                        ? 'bg-red-500'
+                        : incident.severity === 'Moderate'
+                          ? 'bg-orange-500'
+                          : 'bg-primary',
+                    )}
+                  >
+                    {incident.severity}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );
 };
 
-const MethodologyPage = () => {
-  const data = [{ name: '01', value: 400 }, { name: '02', value: 300 }, { name: '03', value: 600 }, { name: '04', value: 800 }, { name: '05', value: 500 }, { name: '06', value: 900 }];
+/* ------------------------------------------------------------------ */
+/*  About Page                                                         */
+/* ------------------------------------------------------------------ */
+
+const AboutPage = () => {
+  const chartData = [
+    { name: '01', value: 400 },
+    { name: '02', value: 300 },
+    { name: '03', value: 600 },
+    { name: '04', value: 800 },
+    { name: '05', value: 500 },
+    { name: '06', value: 900 },
+  ];
+
   return (
-    <div className="mx-auto max-w-7xl px-6 pb-20 pt-24">
-      <div className="mb-20 max-w-3xl">
-        <div className="mb-4 text-[10px] font-bold uppercase tracking-widest text-primary">Statistical Framework 2.4</div>
-        <h1 className="mb-8 text-5xl font-display font-bold text-secondary">The Synthesis of <br /><span className="text-primary">Predictive Authority.</span></h1>
-        <p className="text-lg leading-relaxed text-secondary/60">Sovereign Observer employs a multi-vector Bayesian approach to road safety, combining historical crash telemetry with real-time atmospheric data to generate high-confidence risk narratives.</p>
+    <div className="mx-auto max-w-5xl px-6 pb-20 pt-24">
+      {/* Intro */}
+      <div className="mb-16">
+        <h1 className="mb-6 font-display text-5xl font-bold text-secondary">
+          About Road Report <span className="text-primary">AI</span>
+        </h1>
+        <p className="max-w-2xl text-lg leading-relaxed text-secondary/60">
+          We use machine learning to analyze road conditions and historical accident data to predict crash risk levels
+          across all 254 Texas counties. The model continuously learns from structured datasets to improve prediction
+          accuracy.
+        </p>
       </div>
-      <div className="grid items-center gap-12 lg:grid-cols-2">
-        <div>
-          <h2 className="mb-8 text-3xl font-display font-bold text-secondary">Primary Data Streams</h2>
-          <div className="space-y-6">
-            {[{ title: 'CRIS (Crash Records)', desc: 'Historical incident logging.', icon: FileText }, { title: 'TxDOT Telemetry', desc: 'Real-time sensor and infrastructure health.', icon: Activity }, { title: 'Weather.gov (NOAA)', desc: 'Atmospheric pressure and visibility indices.', icon: Thermometer }].map((item) => (
-              <div key={item.title} className="flex gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-tertiary"><item.icon className="h-6 w-6 text-primary" /></div>
-                <div><h4 className="font-bold text-secondary">{item.title}</h4><p className="text-sm text-secondary/60">{item.desc}</p></div>
+
+      {/* Data Sources */}
+      <div className="mb-16">
+        <h2 className="mb-8 font-display text-2xl font-bold text-secondary">Data Sources</h2>
+        <div className="grid gap-6 md:grid-cols-2">
+          {[
+            {
+              icon: FileText,
+              title: 'TxDOT CRIS',
+              desc: 'Crash Records Information System — historical accident records with location, date, time, weather, and road conditions.',
+            },
+            {
+              icon: Thermometer,
+              title: 'Weather.gov API',
+              desc: 'National Weather Service providing real-time weather alerts and conditions by zone.',
+            },
+            {
+              icon: MapIcon,
+              title: 'Nominatim / OpenStreetMap',
+              desc: 'Free geocoding for road and location lookup. MapLibre GL for interactive map rendering.',
+            },
+            {
+              icon: Activity,
+              title: 'TxDOT AADT',
+              desc: 'Annual Average Daily Traffic counts — road-level traffic volume data including the Top 100 most congested Texas roadways.',
+            },
+          ].map((ds) => (
+            <div key={ds.title} className="glass-card flex gap-4 p-6">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <ds.icon className="h-6 w-6 text-primary" />
               </div>
-            ))}
+              <div>
+                <h4 className="font-bold text-secondary">{ds.title}</h4>
+                <p className="mt-1 text-sm leading-relaxed text-secondary/60">{ds.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* RRS Formula */}
+      <div className="mb-16">
+        <h2 className="mb-8 font-display text-2xl font-bold text-secondary">Road Risk Score Formula</h2>
+        <div className="mb-8 rounded-2xl border border-tertiary bg-white p-8 text-center shadow-sm">
+          <div className="font-display text-2xl font-bold text-secondary">
+            RRS = <span className="text-primary">0.35</span>C + <span className="text-primary">0.30</span>A +{' '}
+            <span className="text-primary">0.20</span>E + <span className="text-primary">0.15</span>T
           </div>
         </div>
-        <div className="relative overflow-hidden rounded-3xl bg-secondary p-8 shadow-2xl">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent" />
-          <div className="relative z-10">
-            <div className="mb-6 h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {data.map((_, index) => <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#0A705E' : '#14B8A6'} opacity={0.6 + index / 20} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { weight: '35%', name: 'Road Condition (C)', range: '0–30 pts' },
+            { weight: '30%', name: 'Historical (A)', range: '0–25 pts' },
+            { weight: '20%', name: 'Environmental (E)', range: '0–25 pts' },
+            { weight: '15%', name: 'Traffic (T)', range: '0–20 pts' },
+          ].map((fc) => (
+            <div key={fc.name} className="glass-card p-6 text-center">
+              <div className="mb-1 font-display text-2xl font-bold text-primary">{fc.weight}</div>
+              <div className="text-sm font-bold text-secondary">{fc.name}</div>
+              <div className="mt-1 font-mono text-[10px] text-secondary/40">{fc.range}</div>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/10 p-6 backdrop-blur-md">
-              <h4 className="mb-2 font-bold text-white">Real-Time Ingestion Layer</h4>
-              <p className="text-sm text-white/60">Processing 1.4 million data points per minute across the regional transportation grid.</p>
+          ))}
+        </div>
+      </div>
+
+      {/* Tech Stack */}
+      <div className="mb-16">
+        <h2 className="mb-8 font-display text-2xl font-bold text-secondary">Tech Stack</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { name: 'React + Vite', desc: 'Frontend framework' },
+            { name: 'TypeScript', desc: 'Type-safe frontend and API layer' },
+            { name: 'FastAPI', desc: 'Backend REST API' },
+            { name: 'PostgreSQL', desc: 'Production database' },
+            { name: 'PyTorch', desc: 'ML model training and inference' },
+            { name: 'Tailwind CSS', desc: 'Utility-first styling' },
+          ].map((tech) => (
+            <div key={tech.name} className="glass-card flex items-center gap-4 p-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tertiary font-mono text-xs font-bold text-primary">
+                {tech.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div className="text-sm font-bold text-secondary">{tech.name}</div>
+                <div className="text-xs text-secondary/50">{tech.desc}</div>
+              </div>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Model Stats */}
+      <div className="mb-16 grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        {[
+          { val: '99.4%', label: 'Training accuracy' },
+          { val: '< 2s', label: 'Inference latency' },
+          { val: '250K+', label: 'Training samples' },
+          { val: '254', label: 'Texas counties' },
+          { val: '5', label: 'Risk tiers' },
+        ].map((s) => (
+          <div key={s.label} className="glass-card p-5 text-center">
+            <div className="font-display text-2xl font-bold text-secondary">{s.val}</div>
+            <div className="mt-1 text-xs text-secondary/50">{s.label}</div>
           </div>
+        ))}
+      </div>
+
+      {/* Team */}
+      <div>
+        <h2 className="mb-8 font-display text-2xl font-bold text-secondary">The Team</h2>
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {TEAM_MEMBERS.map((m) => (
+            <div key={m.initials} className="glass-card p-6 text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-tertiary font-display text-lg font-bold text-secondary/60">
+                {m.initials}
+              </div>
+              <div className="text-sm font-bold text-secondary">{m.name}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 };
 
+/* ------------------------------------------------------------------ */
+/*  App Root                                                           */
+/* ------------------------------------------------------------------ */
+
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('landing');
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => (typeof window !== 'undefined' && window.localStorage.getItem('sovereign-theme') === 'dark' ? 'dark' : 'light'));
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    typeof window !== 'undefined' && window.localStorage.getItem('rr-theme') === 'dark' ? 'dark' : 'light',
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [report, setReport] = useState<LiveReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -476,11 +850,12 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem('sovereign-theme', theme);
+    window.localStorage.setItem('rr-theme', theme);
   }, [theme]);
 
-  const handleSearchSubmit = async () => {
-    const trimmed = searchQuery.trim();
+  const handleSearchSubmit = async (directQuery?: string) => {
+    const trimmed = (directQuery ?? searchQuery).trim();
+    if (directQuery) setSearchQuery(directQuery);
     if (!trimmed) {
       setError('Please enter a road or location first.');
       setActivePage('landing');
@@ -516,36 +891,78 @@ export default function App() {
     }
   };
 
-  const footerCopy = useMemo(() => (report ? `Live report loaded for ${report.query} - score ${report.score}/100` : 'Road safety frontend with live backend-connected reporting.'), [report]);
-
   const renderPage = () => {
     switch (activePage) {
       case 'landing':
-        return <LandingPage searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} onSearchSubmit={handleSearchSubmit} onOpenMethodology={() => setActivePage('methodology')} isLoading={isLoading} error={error} />;
+        return (
+          <LandingPage
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            onSearchSubmit={handleSearchSubmit}
+            onPageChange={setActivePage}
+            isLoading={isLoading}
+            error={error}
+          />
+        );
       case 'map':
         return <RiskMapPage report={report} />;
       case 'reports':
         return <SafetyReportPage report={report} isLoading={isLoading} error={error} />;
-      case 'methodology':
-        return <MethodologyPage />;
+      case 'about':
+        return <AboutPage />;
       default:
-        return <LandingPage searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} onSearchSubmit={handleSearchSubmit} onOpenMethodology={() => setActivePage('methodology')} isLoading={isLoading} error={error} />;
+        return (
+          <LandingPage
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            onSearchSubmit={handleSearchSubmit}
+            onPageChange={setActivePage}
+            isLoading={isLoading}
+            error={error}
+          />
+        );
     }
   };
 
   return (
-    <div className={`sovereign-app theme-${theme} min-h-screen bg-[#F8FAF9]`}>
-      <Navbar activePage={activePage} onPageChange={setActivePage} theme={theme} onToggleTheme={() => setTheme((current) => current === 'light' ? 'dark' : 'light')} searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} onSearchSubmit={handleSearchSubmit} isLoading={isLoading} />
+    <div className={`theme-${theme} min-h-screen bg-[#FAFAFF]`}>
+      <Navbar
+        activePage={activePage}
+        onPageChange={setActivePage}
+        theme={theme}
+        onToggleTheme={() => setTheme((c) => (c === 'light' ? 'dark' : 'light'))}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        onSearchSubmit={handleSearchSubmit}
+        isLoading={isLoading}
+      />
       <AnimatePresence mode="wait">
-        <motion.div key={activePage} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
+        <motion.div
+          key={activePage}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.3 }}
+        >
           {renderPage()}
         </motion.div>
       </AnimatePresence>
-      <footer className="border-t border-tertiary bg-white px-6 py-12">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-8 md:flex-row">
-          <div className="text-[10px] font-medium text-secondary/40">{footerCopy}</div>
-          <div className="flex gap-8">
-            {['Privacy Policy', 'Terms of Service', 'API Access', 'Contact Support'].map((link) => <button key={link} className="text-[10px] font-bold uppercase tracking-widest text-secondary/40 hover:text-primary">{link}</button>)}
+      <footer className="border-t border-tertiary bg-white px-6 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 md:flex-row">
+          <div>
+            <span className="font-display text-sm font-bold text-secondary">
+              Road Report <span className="italic text-primary">AI</span>
+            </span>
+            <span className="ml-3 text-[10px] text-secondary/40">
+              AI-powered crash risk predictions for Texas roads.
+            </span>
+          </div>
+          <div className="flex gap-6">
+            {['GitHub', 'TxDOT CRIS', 'Weather.gov'].map((link) => (
+              <span key={link} className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">
+                {link}
+              </span>
+            ))}
           </div>
         </div>
       </footer>
