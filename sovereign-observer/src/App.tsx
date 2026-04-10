@@ -26,6 +26,7 @@ import { cn } from './lib/utils';
 import { LANDING_STATS, NAV_ITEMS, SIDEBAR_ITEMS } from './constants';
 import { geocodeLocation, predictRisk } from './lib/risk';
 import type { Incident, LiveReport, Page, RiskTier } from './types';
+import { RiskMap } from './RiskMap'; // Adjust path as needed
 
 function getRiskTier(score: number): RiskTier {
   if (score >= 75) return 'Critical';
@@ -262,6 +263,7 @@ const LandingPage = ({
 
 const RiskMapPage = ({ report }: { report: LiveReport | null }) => {
   const [activeSidebarItem, setActiveSidebarItem] = useState('analytics');
+  
   return (
     <div className="flex h-screen pt-16">
       <Sidebar activeItem={activeSidebarItem} onSelectItem={setActiveSidebarItem} />
@@ -282,42 +284,38 @@ const RiskMapPage = ({ report }: { report: LiveReport | null }) => {
             </div>
           </div>
         </div>
+        
         <div className="relative flex-1 overflow-hidden rounded-2xl bg-secondary">
-          <img src="https://picsum.photos/seed/sector7/1200/800" alt="Map View" className="h-full w-full object-cover grayscale opacity-40" referrerPolicy="no-referrer" />
-          <div className="absolute left-6 top-6 max-w-md rounded-xl border border-white/10 bg-secondary/80 p-6 text-white backdrop-blur-md">
+          
+          <RiskMap bounds={report?.bounds} />
+
+          <div className="pointer-events-none absolute left-6 top-6 max-w-md rounded-xl border border-white/10 bg-secondary/80 p-6 text-white backdrop-blur-md">
             <p className="text-sm leading-relaxed opacity-80">{report ? report.summary : 'Search from the landing page to load a live backend-connected corridor report.'}</p>
           </div>
-          <div className="absolute right-6 top-6 w-64 rounded-xl border border-tertiary bg-white p-6 shadow-xl">
+          
+          <div className="pointer-events-none absolute right-6 top-6 w-64 rounded-xl border border-tertiary bg-white p-6 shadow-xl">
             <h4 className="mb-4 text-[10px] font-bold uppercase tracking-widest text-secondary/40">Sector Metadata</h4>
             <div className="space-y-3">
-              <div className="flex justify-between"><span className="text-xs text-secondary/60">Risk Tier</span><span className={cn('text-xs font-bold', report ? getRiskTone(report.tier) : 'text-red-500')}>{report ? report.tier : 'Critical'}</span></div>
-              <div className="flex justify-between"><span className="text-xs text-secondary/60">Risk Score</span><span className="text-xs font-bold">{report ? `${report.score}/100` : '75/100'}</span></div>
-              <div className="flex justify-between"><span className="text-xs text-secondary/60">Segment ID</span><span className="font-mono text-xs font-bold">{report ? `TX-${Math.abs(Math.round(report.latitude * 100))}-${Math.abs(Math.round(report.longitude * 100))}` : 'TX-8852-X'}</span></div>
-            </div>
-          </div>
-          <div className="absolute bottom-6 left-6 right-6 flex items-center gap-4">
-            <div className="flex flex-1 items-center gap-6 rounded-xl border border-tertiary bg-white/90 p-4 backdrop-blur-md">
-              <div className="flex items-center gap-3 border-r border-tertiary pr-6">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary"><Clock className="h-4 w-4 text-white" /></div>
-                <div><div className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">Playback</div><div className="text-xs font-bold text-primary">{report ? 'LIVE SEARCH' : 'REAL-TIME'}</div></div>
+              <div className="flex justify-between">
+                <span className="text-xs text-secondary/60">Risk Tier</span>
+                <span className={cn('text-xs font-bold', report ? getRiskTone(report.tier) : 'text-red-500')}>{report ? report.tier : 'Critical'}</span>
               </div>
-              <div className="flex flex-1 items-center gap-4">
-                <span className="text-[10px] font-bold text-secondary/40">00:00</span>
-                <div className="relative h-1.5 flex-1 rounded-full bg-tertiary"><div className="absolute inset-y-0 left-0 w-2/3 rounded-full bg-primary" /></div>
-                <span className="text-[10px] font-bold text-secondary/40">23:59</span>
+              <div className="flex justify-between">
+                <span className="text-xs text-secondary/60">Risk Score</span>
+                <span className="text-xs font-bold">{report ? `${report.score}/100` : '75/100'}</span>
               </div>
-              <div className="flex items-center gap-2 border-l border-tertiary pl-6">
-                <button className="rounded-lg p-2 hover:bg-tertiary"><Layers className="h-4 w-4 text-secondary/60" /></button>
-                <button className="rounded-lg p-2 hover:bg-tertiary"><Settings className="h-4 w-4 text-secondary/60" /></button>
+              <div className="flex justify-between">
+                <span className="text-xs text-secondary/60">Segment ID</span>
+                <span className="font-mono text-xs font-bold">{report ? `TX-${Math.abs(Math.round(report.latitude * 100))}-${Math.abs(Math.round(report.longitude * 100))}` : 'TX-8852-X'}</span>
               </div>
             </div>
           </div>
+
         </div>
       </main>
     </div>
   );
 };
-
 const SafetyReportPage = ({ report, isLoading, error }: { report: LiveReport | null; isLoading: boolean; error: string | null }) => {
   const [activeSidebarItem, setActiveSidebarItem] = useState('road-logs');
   const incidents: Incident[] = [
