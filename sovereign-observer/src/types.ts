@@ -1,4 +1,4 @@
-export type Page = 'landing' | 'map' | 'reports' | 'methodology' | 'documentation';
+export type Page = 'landing' | 'map' | 'reports' | 'methodology' | 'documentation' | 'about';
 
 export interface Stat {
   label: string;

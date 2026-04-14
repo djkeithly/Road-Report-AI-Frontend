@@ -5,10 +5,15 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  CloudSun,
+  Cpu,
+  Database,
+  ExternalLink,
   FileText,
   Map as MapIcon,
   MessageSquare,
   Moon,
+  Route,
   Search,
   ShieldCheck,
   Sun,
@@ -68,6 +73,23 @@ function buildSummary(tier: RiskTier, query: string, apiMessage: string): string
   return apiMessage?.trim() ? `${summary[tier]} ${apiMessage}` : summary[tier];
 }
 
+const DEFAULT_PAGE: Page = 'landing';
+const VALID_PAGES = new Set<Page>(['landing', 'map', 'reports', 'methodology', 'documentation', 'about']);
+
+function getPageFromLocation(): Page {
+  if (typeof window === 'undefined') return DEFAULT_PAGE;
+
+  const hash = window.location.hash.replace(/^#\/?/, '').trim();
+  return VALID_PAGES.has(hash as Page) ? (hash as Page) : DEFAULT_PAGE;
+}
+
+function getUrlForPage(page: Page): string {
+  if (typeof window === 'undefined') return '';
+
+  const base = `${window.location.pathname}${window.location.search}`;
+  return page === DEFAULT_PAGE ? base : `${base}#/${page}`;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Navbar                                                             */
 /* ------------------------------------------------------------------ */
@@ -119,6 +141,7 @@ const Navbar = ({
 
     <div className="flex items-center gap-4">
       <form
+        id="route-search-form"
         className="relative hidden lg:block"
         onSubmit={(event) => {
           event.preventDefault();
@@ -141,7 +164,8 @@ const Navbar = ({
         <span className="hidden sm:inline">{theme === 'light' ? 'Dark' : 'Light'}</span>
       </button>
       <button
-        onClick={onSearchSubmit}
+        type="submit"
+        form="route-search-form"
         disabled={isLoading}
         className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-70"
       >
@@ -834,12 +858,241 @@ const AboutPage = () => {
   );
 };
 
+const DocumentationPage = () => {
+  const dataSources = [
+    {
+      icon: Database,
+      code: 'CRIS',
+      title: 'TxDOT CRIS',
+      desc: 'Crash Investigation System records with location, date, weather, road condition, and incident context. Legacy exports support large CSV pulls dating back to 2016.',
+    },
+    {
+      icon: CloudSun,
+      code: 'NWS',
+      title: 'Weather.gov API',
+      desc: 'National Weather Service conditions and alerts that feed the environmental portion of the risk score in near real time.',
+    },
+    {
+      icon: Route,
+      code: 'MAP',
+      title: 'Geocoding + Routing',
+      desc: 'Location lookup, nearest-road matching, and corridor context used to anchor a report to the right road segment.',
+    },
+    {
+      icon: Activity,
+      code: 'AADT',
+      title: 'TxDOT AADT',
+      desc: 'Annual Average Daily Traffic counts used as a pressure indicator for high-volume corridors and congestion-sensitive segments.',
+    },
+  ];
+
+  const formulaComponents = [
+    { weight: '35%', name: 'Road Condition (C)', range: '0-30 points' },
+    { weight: '30%', name: 'Historical (A)', range: '0-25 points' },
+    { weight: '20%', name: 'Environmental (E)', range: '0-25 points' },
+    { weight: '15%', name: 'Traffic (T)', range: '0-20 points' },
+  ];
+
+  const techStack = [
+    { name: 'React + Vite', desc: 'Current frontend framework', icon: 'UI' },
+    { name: 'TypeScript', desc: 'Typed UI and API integration', icon: 'TS' },
+    { name: 'FastAPI', desc: 'Backend REST API layer', icon: 'API' },
+    { name: 'PostgreSQL', desc: 'Persistent data store', icon: 'DB' },
+    { name: 'PyTorch', desc: 'Model training and inference', icon: 'ML' },
+    { name: 'Pandas + NumPy', desc: 'Data preparation and feature engineering', icon: 'DS' },
+  ];
+
+  return (
+    <div className="mx-auto max-w-7xl px-6 pb-20 pt-24">
+      <section className="mb-16 grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+        <div>
+          <div className="mb-4 flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-primary" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+              System Documentation
+            </span>
+          </div>
+          <h1 className="mb-6 font-display text-5xl font-bold leading-tight text-secondary lg:text-6xl">
+            Documentation for the <span className="italic text-primary">Road Report AI</span> stack.
+          </h1>
+          <p className="max-w-2xl text-base leading-relaxed text-secondary/60">
+            This page captures the practical reference material from the legacy site: source systems, scoring logic,
+            platform architecture, and team ownership. It is meant to explain how the product works, not just how it
+            looks.
+          </p>
+        </div>
+
+        <div className="glass-card p-6">
+          <div className="mb-4 text-[10px] font-bold uppercase tracking-widest text-secondary/40">
+            Quick Reference
+          </div>
+          <div className="space-y-3 text-sm text-secondary/70">
+            <div className="flex items-start justify-between gap-4 border-b border-tertiary pb-3">
+              <span>Coverage</span>
+              <span className="font-bold text-secondary">254 Texas counties</span>
+            </div>
+            <div className="flex items-start justify-between gap-4 border-b border-tertiary pb-3">
+              <span>Backend</span>
+              <span className="font-bold text-secondary">FastAPI risk prediction service</span>
+            </div>
+            <div className="flex items-start justify-between gap-4 border-b border-tertiary pb-3">
+              <span>Frontend</span>
+              <span className="font-bold text-secondary">React + Vite web client</span>
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <span>Primary output</span>
+              <span className="font-bold text-secondary">Route-level risk reports</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-16 grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+        <div>
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Workflow</div>
+          <h2 className="mb-5 font-display text-3xl font-bold text-secondary">How a report is generated</h2>
+          <div className="space-y-4 text-sm leading-relaxed text-secondary/65">
+            <p>The frontend first geocodes a road or location query, then sends coordinates to the prediction API.</p>
+            <p>The backend combines historical crash patterns, weather context, and road pressure signals to return a normalized risk score.</p>
+            <p>The UI translates that score into a tier, a summary, and map/report surfaces that can be reviewed by users in seconds.</p>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {[
+            { step: '01', title: 'Locate', desc: 'Road names and places are geocoded into a usable corridor coordinate.' },
+            { step: '02', title: 'Score', desc: 'The API evaluates the location against the trained crash-risk model.' },
+            { step: '03', title: 'Render', desc: 'The frontend returns a map view, risk tier, and structured report summary.' },
+          ].map((item) => (
+            <div key={item.step} className="glass-card p-6">
+              <div className="mb-4 font-display text-3xl font-bold text-primary">{item.step}</div>
+              <div className="mb-2 text-sm font-bold text-secondary">{item.title}</div>
+              <p className="text-sm leading-relaxed text-secondary/60">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-16">
+        <div className="mb-8 flex items-end justify-between gap-6">
+          <div>
+            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Sources</div>
+            <h2 className="font-display text-3xl font-bold text-secondary">Data sources and external inputs</h2>
+          </div>
+          <div className="hidden text-xs text-secondary/40 md:block">Legacy source content preserved from the original site</div>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2">
+          {dataSources.map((ds) => (
+            <div key={ds.title} className="glass-card flex gap-4 p-6">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <ds.icon className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <div className="mb-2 flex items-center gap-3">
+                  <span className="rounded-full bg-tertiary px-2 py-1 font-mono text-[10px] font-bold text-secondary/50">
+                    {ds.code}
+                  </span>
+                  <h3 className="text-sm font-bold text-secondary">{ds.title}</h3>
+                </div>
+                <p className="text-sm leading-relaxed text-secondary/60">{ds.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-16 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="glass-card p-8">
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Scoring</div>
+          <h2 className="mb-6 font-display text-3xl font-bold text-secondary">Road Risk Score formula</h2>
+          <div className="mb-8 rounded-2xl bg-secondary px-6 py-8 text-center shadow-inner">
+            <div className="font-display text-3xl font-bold text-white">
+              RRS = <span className="text-primary">0.35</span>C + <span className="text-primary">0.30</span>A +{' '}
+              <span className="text-primary">0.20</span>E + <span className="text-primary">0.15</span>T
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {formulaComponents.map((fc) => (
+              <div key={fc.name} className="rounded-2xl border border-tertiary bg-white/80 p-5">
+                <div className="mb-1 font-display text-2xl font-bold text-primary">{fc.weight}</div>
+                <div className="text-sm font-bold text-secondary">{fc.name}</div>
+                <div className="mt-1 text-xs text-secondary/45">{fc.range}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-card p-8">
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Implementation</div>
+          <h2 className="mb-6 font-display text-3xl font-bold text-secondary">Technology stack</h2>
+          <div className="space-y-3">
+            {techStack.map((tech) => (
+              <div key={tech.name} className="flex items-center gap-4 rounded-2xl border border-tertiary bg-white/80 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tertiary font-mono text-xs font-bold text-primary">
+                  {tech.icon}
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-secondary">{tech.name}</div>
+                  <div className="text-xs text-secondary/50">{tech.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-16">
+        <div className="mb-8 flex items-end justify-between gap-6">
+          <div>
+            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Ownership</div>
+            <h2 className="font-display text-3xl font-bold text-secondary">Project team</h2>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {TEAM_MEMBERS.map((member) => (
+            <div key={member.initials} className="glass-card p-6 text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-tertiary font-display text-lg font-bold text-secondary/60">
+                {member.initials}
+              </div>
+              <div className="text-sm font-bold text-secondary">{member.name}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="glass-card flex flex-col gap-6 p-8 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-primary">External references</div>
+          <h2 className="font-display text-2xl font-bold text-secondary">Key systems referenced by the platform</h2>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {[
+            { label: 'Weather.gov', href: 'https://www.weather.gov/documentation/services-web-api' },
+            { label: 'TxDOT CRIS', href: 'https://cris.dot.state.tx.us/public/Query/app/home' },
+            { label: 'OpenStreetMap', href: 'https://www.openstreetmap.org/' },
+          ].map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-tertiary px-4 py-2 text-sm font-medium text-secondary/70 transition-colors hover:border-primary hover:text-primary"
+            >
+              {link.label}
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+};
+
 /* ------------------------------------------------------------------ */
 /*  App Root                                                           */
 /* ------------------------------------------------------------------ */
 
 export default function App() {
-  const [activePage, setActivePage] = useState<Page>('landing');
+  const [activePage, setActivePage] = useState<Page>(() => getPageFromLocation());
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     typeof window !== 'undefined' && window.localStorage.getItem('rr-theme') === 'dark' ? 'dark' : 'light',
   );
@@ -853,16 +1106,47 @@ export default function App() {
     window.localStorage.setItem('rr-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    const syncPageFromLocation = () => {
+      setActivePage(getPageFromLocation());
+    };
+
+    syncPageFromLocation();
+    window.addEventListener('popstate', syncPageFromLocation);
+    window.addEventListener('hashchange', syncPageFromLocation);
+
+    return () => {
+      window.removeEventListener('popstate', syncPageFromLocation);
+      window.removeEventListener('hashchange', syncPageFromLocation);
+    };
+  }, []);
+
+  const navigateToPage = (page: Page, options?: { replace?: boolean }) => {
+    setActivePage((currentPage) => {
+      if (typeof window === 'undefined') return page;
+
+      const nextUrl = getUrlForPage(page);
+      const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+      if (currentUrl !== nextUrl) {
+        const historyMethod = options?.replace ? 'replaceState' : 'pushState';
+        window.history[historyMethod]({ page }, '', nextUrl);
+      }
+
+      return currentPage === page ? currentPage : page;
+    });
+  };
+
   const handleSearchSubmit = async (directQuery?: string) => {
     const trimmed = (directQuery ?? searchQuery).trim();
     if (directQuery) setSearchQuery(directQuery);
     if (!trimmed) {
       setError('Please enter a road or location first.');
-      setActivePage('landing');
+      navigateToPage('landing');
       return;
     }
 
-    setActivePage('reports');
+    navigateToPage('reports');
     setIsLoading(true);
     setError(null);
 
@@ -899,7 +1183,7 @@ export default function App() {
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             onSearchSubmit={handleSearchSubmit}
-            onPageChange={setActivePage}
+            onPageChange={navigateToPage}
             isLoading={isLoading}
             error={error}
           />
@@ -908,6 +1192,8 @@ export default function App() {
         return <RiskMapPage report={report} />;
       case 'reports':
         return <SafetyReportPage report={report} isLoading={isLoading} error={error} />;
+      case 'documentation':
+        return <DocumentationPage />;
       case 'about':
         return <AboutPage />;
       default:
@@ -916,7 +1202,7 @@ export default function App() {
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             onSearchSubmit={handleSearchSubmit}
-            onPageChange={setActivePage}
+            onPageChange={navigateToPage}
             isLoading={isLoading}
             error={error}
           />
@@ -928,7 +1214,7 @@ export default function App() {
     <div className={`theme-${theme} min-h-screen bg-[#FAFAFF]`}>
       <Navbar
         activePage={activePage}
-        onPageChange={setActivePage}
+        onPageChange={navigateToPage}
         theme={theme}
         onToggleTheme={() => setTheme((c) => (c === 'light' ? 'dark' : 'light'))}
         searchQuery={searchQuery}

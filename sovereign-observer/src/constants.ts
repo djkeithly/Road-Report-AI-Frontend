@@ -27,3 +27,11 @@ export const LANDING_STATS = [
   { label: 'CRASH RECORDS ANALYZED', value: '42.8M', description: 'Historical context meeting real-time predictive modeling.' },
   { label: 'ANALYSIS LATENCY', value: '0.42s', description: 'Near-instantaneous interpretation of network disturbances.' },
 ];
+
+export const TEAM_MEMBERS = [
+  { initials: 'DK', name: 'Dennis Keithly' },
+  { initials: 'BS', name: 'Ben Stidham' },
+  { initials: 'JR', name: 'Jose Rodas' },
+  { initials: 'CC', name: 'Christopher Chaiban' },
+  { initials: 'KO', name: "Kade O'Bar" },
+];
