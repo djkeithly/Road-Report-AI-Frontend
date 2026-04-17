@@ -23,7 +23,7 @@ import {
 import { ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { cn } from './lib/utils';
 import { LANDING_STATS, NAV_ITEMS, TEAM_MEMBERS } from './constants';
-import { geocodeLocation, predictRisk } from './lib/risk';
+import { fetchRoadSuggestions, geocodeLocation, predictRisk, submitUserReport } from './lib/risk';
 import type { Incident, LiveReport, Page, RiskTier } from './types';
 
 /* ------------------------------------------------------------------ */
@@ -153,6 +153,7 @@ const Navbar = ({
           value={searchQuery}
           onChange={(event) => onSearchQueryChange(event.target.value)}
           placeholder="Search roads..."
+          list="road-suggestions"
           className="w-64 rounded-full border-none bg-tertiary/50 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20"
         />
       </form>
@@ -265,6 +266,7 @@ const LandingPage = ({
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
             placeholder="Search a road or location..."
+            list="road-suggestions"
             className="flex-1 rounded-xl border-none bg-tertiary/50 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20"
           />
           <button type="submit" className="btn-primary flex items-center justify-center gap-2" disabled={isLoading}>
@@ -533,17 +535,32 @@ const SafetyReportPage = ({
   report,
   isLoading,
   error,
+  onSubmitIssue,
+  issueSubmitting,
+  issueFeedback,
 }: {
   report: LiveReport | null;
   isLoading: boolean;
   error: string | null;
+  onSubmitIssue: (payload: { roadName: string; issueType: string; description: string }) => Promise<void>;
+  issueSubmitting: boolean;
+  issueFeedback: string | null;
 }) => {
+  const [roadName, setRoadName] = useState('');
+  const [issueType, setIssueType] = useState('other');
+  const [description, setDescription] = useState('');
   const incidents: Incident[] = [
     { id: '1', type: 'Multi-Vehicle Collision', date: 'MAY 14, 2024', time: '08:42 AM', severity: 'Critical', location: 'I-35 Northbound' },
     { id: '2', type: 'Secondary Surface Hazard', date: 'MAY 12, 2024', time: '11:15 PM', severity: 'Low', location: 'Segment TX-32' },
     { id: '3', type: 'Single Lane Obstruction', date: 'MAY 11, 2024', time: '04:08 PM', severity: 'Moderate', location: 'Austin Central' },
   ];
   const ringOffset = report ? 364.4 - (364.4 * report.score) / 100 : 364.4;
+
+  useEffect(() => {
+    if (report?.query) {
+      setRoadName(report.query);
+    }
+  }, [report?.query]);
 
   return (
     <div className="min-h-screen pt-16">
@@ -657,6 +674,71 @@ const SafetyReportPage = ({
             </div>
           </div>
         </div>
+
+        {report ? (
+          <div className="mb-10 glass-card p-8">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <MessageSquare className="h-5 w-5 text-primary" />
+              </div>
+              <h4 className="text-lg font-bold">Submit a roadway issue</h4>
+            </div>
+            <form
+              className="grid gap-4"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                await onSubmitIssue({
+                  roadName,
+                  issueType,
+                  description,
+                });
+                setDescription('');
+              }}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <input
+                  value={roadName}
+                  onChange={(event) => setRoadName(event.target.value)}
+                  placeholder="Road name"
+                  className="rounded-xl border border-tertiary bg-white px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20"
+                />
+                <select
+                  value={issueType}
+                  onChange={(event) => setIssueType(event.target.value)}
+                  className="rounded-xl border border-tertiary bg-white px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="pothole">Pothole</option>
+                  <option value="flooding">Flooding</option>
+                  <option value="debris">Debris</option>
+                  <option value="construction">Construction</option>
+                  <option value="signal_outage">Signal outage</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={4}
+                placeholder="Describe what drivers should know..."
+                className="rounded-xl border border-tertiary bg-white px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20"
+                required
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-secondary/50">
+                  Saved reports include this search location's coordinates.
+                </p>
+                <button
+                  type="submit"
+                  disabled={issueSubmitting || !roadName.trim() || description.trim().length < 4}
+                  className="btn-primary disabled:opacity-60"
+                >
+                  {issueSubmitting ? 'Saving...' : 'Submit Report'}
+                </button>
+              </div>
+              {issueFeedback ? <p className="text-sm text-primary">{issueFeedback}</p> : null}
+            </form>
+          </div>
+        ) : null}
 
         {/* Incident Logs */}
         {report ? (
@@ -1097,9 +1179,12 @@ export default function App() {
     typeof window !== 'undefined' && window.localStorage.getItem('rr-theme') === 'dark' ? 'dark' : 'light',
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [roadSuggestions, setRoadSuggestions] = useState<string[]>([]);
   const [report, setReport] = useState<LiveReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [issueSubmitting, setIssueSubmitting] = useState(false);
+  const [issueFeedback, setIssueFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -1120,6 +1205,25 @@ export default function App() {
       window.removeEventListener('hashchange', syncPageFromLocation);
     };
   }, []);
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      setRoadSuggestions([]);
+      return;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        const suggestions = await fetchRoadSuggestions(trimmed);
+        setRoadSuggestions(suggestions);
+      } catch {
+        setRoadSuggestions([]);
+      }
+    }, 180);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchQuery]);
 
   const navigateToPage = (page: Page, options?: { replace?: boolean }) => {
     setActivePage((currentPage) => {
@@ -1152,7 +1256,13 @@ export default function App() {
 
     try {
       const geocode = await geocodeLocation(trimmed);
-      const prediction = await predictRisk({ latitude: geocode.latitude, longitude: geocode.longitude });
+      const normalizedRoadName = trimmed.split(',')[0]?.trim() || trimmed;
+      const prediction = await predictRisk({
+        latitude: geocode.latitude,
+        longitude: geocode.longitude,
+        road_name: normalizedRoadName,
+        segment: geocode.displayName,
+      });
       const score = Math.round(prediction.risk_score * 100);
       const tier = getRiskTier(score);
       setReport({
@@ -1175,6 +1285,44 @@ export default function App() {
     }
   };
 
+  const handleIssueSubmit = async (payload: {
+    roadName: string;
+    issueType: string;
+    description: string;
+  }) => {
+    if (!report) {
+      setIssueFeedback('Search a location first so we can attach coordinates.');
+      return;
+    }
+
+    setIssueSubmitting(true);
+    setIssueFeedback(null);
+    try {
+      const response = await submitUserReport({
+        road_name: payload.roadName.trim(),
+        issue_type: payload.issueType as
+          | 'pothole'
+          | 'flooding'
+          | 'debris'
+          | 'construction'
+          | 'signal_outage'
+          | 'other',
+        description: payload.description.trim(),
+        latitude: report.latitude,
+        longitude: report.longitude,
+      });
+      setIssueFeedback(`Saved report #${response.id}. Thanks for submitting.`);
+    } catch (submitError) {
+      setIssueFeedback(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Failed to submit report. Please try again.',
+      );
+    } finally {
+      setIssueSubmitting(false);
+    }
+  };
+
   const renderPage = () => {
     switch (activePage) {
       case 'landing':
@@ -1191,7 +1339,16 @@ export default function App() {
       case 'map':
         return <RiskMapPage report={report} />;
       case 'reports':
-        return <SafetyReportPage report={report} isLoading={isLoading} error={error} />;
+        return (
+          <SafetyReportPage
+            report={report}
+            isLoading={isLoading}
+            error={error}
+            onSubmitIssue={handleIssueSubmit}
+            issueSubmitting={issueSubmitting}
+            issueFeedback={issueFeedback}
+          />
+        );
       case 'documentation':
         return <DocumentationPage />;
       case 'about':
@@ -1222,6 +1379,11 @@ export default function App() {
         onSearchSubmit={handleSearchSubmit}
         isLoading={isLoading}
       />
+      <datalist id="road-suggestions">
+        {roadSuggestions.map((suggestion) => (
+          <option key={suggestion} value={suggestion} />
+        ))}
+      </datalist>
       <AnimatePresence mode="wait">
         <motion.div
           key={activePage}

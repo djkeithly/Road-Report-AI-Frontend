@@ -1,6 +1,8 @@
 export interface PredictRiskRequest {
   latitude: number;
   longitude: number;
+  road_name?: string;
+  segment?: string;
 }
 
 export interface PredictRiskResponse {
@@ -8,6 +10,20 @@ export interface PredictRiskResponse {
   latitude: number;
   longitude: number;
   message: string;
+}
+
+export interface SubmitReportRequest {
+  road_name: string;
+  issue_type: 'pothole' | 'flooding' | 'debris' | 'construction' | 'signal_outage' | 'other';
+  description: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface SubmitReportResponse {
+  id: number;
+  message: string;
+  createdAt: string;
 }
 
 export interface GeocodeResult {
@@ -83,4 +99,77 @@ export async function geocodeLocation(query: string): Promise<GeocodeResult> {
       Number((latitude + 0.01).toFixed(5)),
     ],
   };
+}
+
+export async function fetchRoadSuggestions(query: string): Promise<string[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  try {
+    const geocodeResponse = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=8&addressdetails=1`,
+    );
+    if (geocodeResponse.ok) {
+      const geocodeData = (await geocodeResponse.json()) as Array<{ display_name?: string }>;
+      if (Array.isArray(geocodeData)) {
+        const unique = new Set<string>();
+        for (const item of geocodeData) {
+          const label = item.display_name?.trim();
+          if (label) {
+            unique.add(label);
+          }
+        }
+        const suggestions = Array.from(unique).slice(0, 8);
+        if (suggestions.length > 0) {
+          return suggestions;
+        }
+      }
+    }
+  } catch {
+    // Fall through to backend model-road suggestions.
+  }
+
+  try {
+    const response = await fetch(
+      `${getApiBaseUrl()}/api/v1/risk/roads/suggest?q=${encodeURIComponent(trimmed)}&limit=8`,
+    );
+    if (!response.ok) {
+      return [];
+    }
+    const data = (await response.json()) as { suggestions?: unknown };
+    if (!Array.isArray(data.suggestions)) {
+      return [];
+    }
+    return data.suggestions
+      .filter((value): value is string => typeof value === 'string')
+      .map((road) => `${road}, Texas`)
+      .slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
+export async function submitUserReport(payload: SubmitReportRequest): Promise<SubmitReportResponse> {
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/reports`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let detail = `Request failed with status ${response.status}`;
+    try {
+      const data = await response.json();
+      if (typeof data?.detail === 'string' && data.detail.trim()) {
+        detail = data.detail;
+      }
+    } catch {
+      // no-op
+    }
+    throw new Error(detail);
+  }
+
+  return (await response.json()) as SubmitReportResponse;
 }
