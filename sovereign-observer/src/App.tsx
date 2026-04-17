@@ -1256,7 +1256,8 @@ export default function App() {
 
     try {
       const geocode = await geocodeLocation(trimmed);
-      const normalizedRoadName = trimmed.split(',')[0]?.trim() || trimmed;
+      const geocodedRoadName = geocode.displayName.split(',')[0]?.trim();
+      const normalizedRoadName = geocodedRoadName || trimmed.split(',')[0]?.trim() || trimmed;
       const prediction = await predictRisk({
         latitude: geocode.latitude,
         longitude: geocode.longitude,
