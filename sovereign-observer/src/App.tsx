@@ -24,7 +24,7 @@ import { ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { cn } from './lib/utils';
 import { LANDING_STATS, NAV_ITEMS, TEAM_MEMBERS } from './constants';
 import { fetchRoadSuggestions, geocodeLocation, predictRisk, submitUserReport } from './lib/risk';
-import type { Incident, LiveReport, Page, RiskTier } from './types';
+import type { Incident, LiveReport, Page, ReportComponent, RiskTier } from './types';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -71,6 +71,60 @@ function buildSummary(tier: RiskTier, query: string, apiMessage: string): string
     Critical: `${query} is operating in a critical risk band right now.`,
   };
   return apiMessage?.trim() ? `${summary[tier]} ${apiMessage}` : summary[tier];
+}
+
+function mapBackendTier(tier: string | undefined, score: number): RiskTier {
+  switch (tier) {
+    case 'severe':
+      return 'Critical';
+    case 'high':
+      return 'High';
+    case 'moderate':
+      return 'Moderate';
+    case 'low':
+    case 'very-low':
+      return 'Low';
+    default:
+      return getRiskTier(score);
+  }
+}
+
+function sanitizeWarnings(warnings: string[] | undefined): string[] {
+  if (!warnings || warnings.length === 0) return [];
+
+  const hasWeatherFallback = warnings.some((warning) =>
+    warning.includes('Live weather source unavailable'),
+  );
+  const hasConservativeWeatherEstimate = warnings.some((warning) =>
+    warning.includes('Weather data unavailable; environmental component estimated conservatively.'),
+  );
+  const hasModelFallback = warnings.some((warning) =>
+    warning.includes('Model normalization bounds were too narrow'),
+  );
+
+  const friendlyWarnings: string[] = [];
+
+  if (hasWeatherFallback || hasConservativeWeatherEstimate) {
+    friendlyWarnings.push(
+      'Live weather conditions could not be confirmed for this lookup, so the environmental impact was estimated conservatively.',
+    );
+  }
+
+  // Keep model-fallback behavior internal for now. It is useful for debugging but too noisy for report readers.
+  if (hasModelFallback) {
+    // no-op
+  }
+
+  return friendlyWarnings;
+}
+
+function flattenComponents(components: NonNullable<Awaited<ReturnType<typeof predictRisk>>['components']>): ReportComponent[] {
+  return [
+    components.roadCondition,
+    components.historical,
+    components.environmental,
+    components.traffic,
+  ];
 }
 
 const DEFAULT_PAGE: Page = 'landing';
@@ -514,8 +568,8 @@ const RiskMapPage = ({ report }: { report: LiveReport | null }) => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-xs text-secondary/60">Segment</span>
-                  <span className="font-mono text-xs font-bold">
-                    TX-{Math.abs(Math.round(report.latitude * 100))}-{Math.abs(Math.round(report.longitude * 100))}
+                  <span className="max-w-[120px] truncate text-right font-mono text-xs font-bold" title={report.segment}>
+                    {report.segment}
                   </span>
                 </div>
               </div>
@@ -659,11 +713,7 @@ const SafetyReportPage = ({
               <div className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">Recommendations</div>
               <div className="flex items-center gap-3">
                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                <span className="text-xs font-medium">
-                  {report?.tier === 'Critical'
-                    ? 'Delay travel or reroute to a lower-pressure corridor.'
-                    : 'Proceed with caution and monitor corridor conditions.'}
-                </span>
+                <span className="text-xs font-medium">{report ? report.advice : 'Waiting for backend guidance.'}</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -671,9 +721,76 @@ const SafetyReportPage = ({
                   Compare alternate routes using the risk score before departure.
                 </span>
               </div>
+              {report?.weather ? (
+                <div className="rounded-xl border border-tertiary bg-white/70 p-4 text-xs text-secondary/60">
+                  <div className="mb-2 font-bold uppercase tracking-widest text-secondary/40">Weather Input</div>
+                  <div className="flex justify-between gap-4">
+                    <span>{report.weather.shortForecast || 'Unavailable'}</span>
+                    <span>{report.weather.temperatureF != null ? `${report.weather.temperatureF}F` : '--'}</span>
+                  </div>
+                  <div className="mt-1 text-secondary/45">{report.weather.source}</div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
+
+        {report ? (
+          <div className="mb-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="glass-card p-8">
+              <div className="mb-6 flex items-center justify-between">
+                <h4 className="text-lg font-bold">Model Components</h4>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">
+                  Backend explainability
+                </span>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {report.components.map((component) => (
+                  <div key={component.key} className="rounded-2xl border border-tertiary bg-white/70 p-5">
+                    <div className="mb-3 flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-bold text-secondary">{component.name}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">
+                          {Math.round(component.weight * 100)}% weight
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-display text-2xl font-bold text-primary">{Math.round(component.score)}</div>
+                        <div className="text-[10px] text-secondary/40">/ {component.maxPoints * 4}</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {component.details.map((detail) => (
+                        <div key={`${component.key}-${detail.label}`} className="flex justify-between gap-4 text-xs">
+                          <span className="text-secondary/55">{detail.label}</span>
+                          <span className="text-right font-medium text-secondary">{detail.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 text-[10px] uppercase tracking-widest text-secondary/35">{component.source}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="glass-card p-8">
+              <h4 className="mb-5 text-lg font-bold">Model Warnings</h4>
+              {report.warnings.length > 0 ? (
+                <div className="space-y-3">
+                  {report.warnings.map((warning) => (
+                    <div key={warning} className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+                      {warning}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-tertiary bg-white/70 px-4 py-3 text-sm text-secondary/60">
+                  No model warnings were returned for this request.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         {report ? (
           <div className="mb-10 glass-card p-8">
@@ -936,6 +1053,200 @@ const AboutPage = () => {
           ))}
         </div>
       </div>
+    </div>
+  );
+};
+
+const MethodologyPage = () => {
+  const componentWeights = [
+    { key: 'C', label: 'Road Condition', weight: 30, detail: 'Road class, surface condition estimate, corridor pressure.' },
+    { key: 'A', label: 'Historical Pattern', weight: 30, detail: 'Time-window risk profile and historical crash context.' },
+    { key: 'E', label: 'Environmental', weight: 25, detail: 'Live forecast, temperature, and severe-weather fallback logic.' },
+    { key: 'T', label: 'Traffic Pattern', weight: 15, detail: 'Commute window behavior and congestion proxy estimates.' },
+  ];
+
+  const runtimeStages = [
+    {
+      step: '01',
+      title: 'Query normalization',
+      body: 'A user-entered road or place is normalized, geocoded, and matched to a corridor coordinate.',
+    },
+    {
+      step: '02',
+      title: 'Context assembly',
+      body: 'The backend infers road class, fetches weather context, and constructs the model input row.',
+    },
+    {
+      step: '03',
+      title: 'Model + heuristic scoring',
+      body: 'The logistic-regression model is blended with explainable component scoring when normalization is stable.',
+    },
+    {
+      step: '04',
+      title: 'Report generation',
+      body: 'The API returns total score, tier, advice, warnings, weather snapshot, and component details for the UI.',
+    },
+  ];
+
+  const dataLines = [
+    { name: 'Coordinates', value: 'Latitude and longitude generated from user search input.' },
+    { name: 'Road name', value: 'Normalized and mapped to the closest known model feature when possible.' },
+    { name: 'Road class', value: 'Inferred from naming patterns such as Interstate, Tollway, or City Street.' },
+    { name: 'Time window', value: 'Current local query time is used for commute-window and overnight behavior.' },
+    { name: 'Weather', value: 'Weather.gov first, Open-Meteo fallback, then conservative estimate if both fail.' },
+  ];
+
+  const componentBars = [
+    { name: 'Road', value: 30 },
+    { name: 'History', value: 30 },
+    { name: 'Weather', value: 25 },
+    { name: 'Traffic', value: 15 },
+  ];
+
+  return (
+    <div className="mx-auto max-w-7xl px-6 pb-20 pt-24">
+      <section className="mb-16 overflow-hidden rounded-[32px] bg-secondary px-8 py-10 text-white shadow-2xl lg:px-12 lg:py-14">
+        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-primary" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                Methodology Briefing
+              </span>
+            </div>
+            <h1 className="max-w-3xl font-display text-5xl font-bold leading-[1.05] lg:text-6xl">
+              How the platform translates a road search into a risk score.
+            </h1>
+            <p className="mt-6 max-w-2xl text-sm leading-relaxed text-white/65">
+              This page is the technical story of the product: what enters the model, how scoring is composed,
+              where fallback logic appears, and what the report is actually telling the user.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { label: 'Model family', value: 'Logistic regression runtime' },
+              { label: 'Output package', value: 'Score, tier, advice, weather, components' },
+              { label: 'Primary weather source', value: 'Weather.gov with Open-Meteo fallback' },
+              { label: 'Display philosophy', value: 'Calibrated score with explainable breakdowns' },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-white/40">{item.label}</div>
+                <div className="mt-2 text-sm font-medium text-white/85">{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-16 grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+        <div>
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Pipeline</div>
+          <h2 className="mb-5 font-display text-3xl font-bold text-secondary">Scoring workflow</h2>
+          <p className="max-w-xl text-sm leading-relaxed text-secondary/60">
+            The methodology is intentionally split into deterministic stages so the frontend can explain where a score
+            came from, not just display a number.
+          </p>
+        </div>
+        <div className="space-y-4">
+          {runtimeStages.map((stage) => (
+            <motion.div
+              key={stage.step}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.25 }}
+              transition={{ duration: 0.35 }}
+              className="grid gap-4 rounded-2xl border border-tertiary bg-white/80 p-5 shadow-sm md:grid-cols-[72px_1fr]"
+            >
+              <div className="font-display text-3xl font-bold text-primary">{stage.step}</div>
+              <div>
+                <h3 className="text-base font-bold text-secondary">{stage.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-secondary/60">{stage.body}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-16 grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="glass-card p-8">
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Weights</div>
+          <h2 className="mb-6 font-display text-3xl font-bold text-secondary">Risk components</h2>
+          <div className="mb-8 h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={componentBars}>
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  {componentBars.map((entry, index) => (
+                    <Cell key={entry.name} fill={index < 2 ? '#0A705E' : index === 2 ? '#2EA38D' : '#9BBEB6'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="space-y-4">
+            {componentWeights.map((component) => (
+              <div key={component.key} className="grid gap-3 rounded-2xl border border-tertiary bg-white/70 p-4 md:grid-cols-[72px_1fr]">
+                <div>
+                  <div className="font-display text-2xl font-bold text-primary">{component.weight}%</div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-secondary/40">{component.key}</div>
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-secondary">{component.label}</div>
+                  <div className="mt-1 text-sm leading-relaxed text-secondary/60">{component.detail}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-card p-8">
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Inputs</div>
+          <h2 className="mb-6 font-display text-3xl font-bold text-secondary">What the backend consumes</h2>
+          <div className="space-y-4">
+            {dataLines.map((item) => (
+              <div key={item.name} className="border-b border-tertiary pb-4 last:border-b-0 last:pb-0">
+                <div className="text-sm font-bold text-secondary">{item.name}</div>
+                <div className="mt-1 text-sm leading-relaxed text-secondary/60">{item.value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-8 rounded-2xl bg-secondary p-6 text-white">
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-primary">Runtime note</div>
+            <p className="text-sm leading-relaxed text-white/70">
+              If model normalization is not trustworthy for a given lookup, the API falls back to heuristic scoring
+              rather than returning a misleading flat score. Weather also has a secondary provider path to reduce empty reports.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-16 grid gap-8 lg:grid-cols-[1fr_1fr]">
+        <div className="glass-card p-8">
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Interpretation</div>
+          <h2 className="mb-5 font-display text-3xl font-bold text-secondary">How to read the score</h2>
+          <div className="space-y-4 text-sm leading-relaxed text-secondary/60">
+            <p>A score is not a guarantee that a crash will or will not occur. It is a compact signal combining model output and explainable risk context for the selected corridor.</p>
+            <p>Higher scores indicate a more elevated crash profile for the queried segment at the time of the request. The component cards show which part of the system pushed the score upward.</p>
+            <p>Warnings should be interpreted as quality notes about context availability, not as errors in the report.</p>
+          </div>
+        </div>
+
+        <div className="glass-card p-8">
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">Boundaries</div>
+          <h2 className="mb-5 font-display text-3xl font-bold text-secondary">Known limitations</h2>
+          <div className="space-y-3">
+            {[
+              'Historical and traffic components still include heuristic estimation rather than full live roadway telemetry.',
+              'Road-name matching is strongest when the search resembles a corridor already represented in the model features.',
+              'Weather quality depends on external provider availability and may use fallback conditions when primary APIs fail.',
+            ].map((item) => (
+              <div key={item} className="rounded-2xl border border-tertiary bg-white/70 px-4 py-3 text-sm text-secondary/60">
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 };
@@ -1264,17 +1575,25 @@ export default function App() {
         road_name: normalizedRoadName,
         segment: geocode.displayName,
       });
-      const score = Math.round(prediction.risk_score * 100);
-      const tier = getRiskTier(score);
+      const score = prediction.total ?? Math.round(prediction.risk_score * 100);
+      const tier = mapBackendTier(prediction.tier, score);
       setReport({
         query: trimmed,
+        road: prediction.road ?? normalizedRoadName,
+        segment: prediction.segment ?? geocode.displayName,
         latitude: geocode.latitude,
         longitude: geocode.longitude,
         bounds: geocode.bounds,
         score,
         tier,
-        summary: buildSummary(tier, trimmed, prediction.message),
-        updatedAt: new Date().toLocaleString(),
+        summary: prediction.summary?.trim() || buildSummary(tier, trimmed, prediction.message),
+        advice:
+          prediction.advice?.trim() ||
+          'Proceed carefully, compare alternate routes, and monitor roadway conditions before departure.',
+        warnings: sanitizeWarnings(prediction.warnings),
+        components: prediction.components ? flattenComponents(prediction.components) : [],
+        weather: prediction.weather ?? null,
+        updatedAt: prediction.updatedAt ? new Date(prediction.updatedAt).toLocaleString() : new Date().toLocaleString(),
         apiMessage: prediction.message,
       });
     } catch (err) {
@@ -1350,6 +1669,8 @@ export default function App() {
             issueFeedback={issueFeedback}
           />
         );
+      case 'methodology':
+        return <MethodologyPage />;
       case 'documentation':
         return <DocumentationPage />;
       case 'about':
