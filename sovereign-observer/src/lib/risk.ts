@@ -5,10 +5,51 @@ export interface PredictRiskRequest {
   segment?: string;
 }
 
+export type PredictRiskTier = 'very-low' | 'low' | 'moderate' | 'high' | 'severe';
+
+export interface PredictRiskDetail {
+  label: string;
+  value: string;
+}
+
+export interface PredictRiskComponent {
+  name: string;
+  key: 'C' | 'A' | 'E' | 'T';
+  score: number;
+  maxPoints: number;
+  weight: number;
+  details: PredictRiskDetail[];
+  source: string;
+}
+
+export interface PredictRiskComponents {
+  roadCondition: PredictRiskComponent;
+  historical: PredictRiskComponent;
+  environmental: PredictRiskComponent;
+  traffic: PredictRiskComponent;
+}
+
+export interface PredictRiskWeather {
+  shortForecast: string | null;
+  temperatureF: number | null;
+  windSpeed: string | null;
+  source: string;
+}
+
 export interface PredictRiskResponse {
   risk_score: number;
+  total?: number;
+  tier?: PredictRiskTier;
+  road?: string;
+  segment?: string;
   latitude: number;
   longitude: number;
+  updatedAt?: string;
+  summary?: string;
+  advice?: string;
+  weather?: PredictRiskWeather;
+  warnings?: string[];
+  components?: PredictRiskComponents;
   message: string;
 }
 
