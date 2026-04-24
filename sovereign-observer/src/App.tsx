@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowRight,
   CloudSun,
-  Cpu,
   Database,
   ExternalLink,
   FileText,
@@ -25,9 +24,10 @@ import { cn } from './lib/utils';
 import { LANDING_STATS, NAV_ITEMS, TEAM_MEMBERS } from './constants';
 import { fetchRoadSuggestions, geocodeLocation, predictRisk, submitUserReport } from './lib/risk';
 import type { Incident, LiveReport, Page, ReportComponent, RiskTier } from './types';
+import { RiskMap } from './RiskMap';
 
 /* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
+/* Helpers                                                           */
 /* ------------------------------------------------------------------ */
 
 function getRiskTier(score: number): RiskTier {
@@ -98,9 +98,6 @@ function sanitizeWarnings(warnings: string[] | undefined): string[] {
   const hasConservativeWeatherEstimate = warnings.some((warning) =>
     warning.includes('Weather data unavailable; environmental component estimated conservatively.'),
   );
-  const hasModelFallback = warnings.some((warning) =>
-    warning.includes('Model normalization bounds were too narrow'),
-  );
 
   const friendlyWarnings: string[] = [];
 
@@ -108,11 +105,6 @@ function sanitizeWarnings(warnings: string[] | undefined): string[] {
     friendlyWarnings.push(
       'Live weather conditions could not be confirmed for this lookup, so the environmental impact was estimated conservatively.',
     );
-  }
-
-  // Keep model-fallback behavior internal for now. It is useful for debugging but too noisy for report readers.
-  if (hasModelFallback) {
-    // no-op
   }
 
   return friendlyWarnings;
@@ -145,7 +137,7 @@ function getUrlForPage(page: Page): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Navbar                                                             */
+/* Navbar                                                            */
 /* ------------------------------------------------------------------ */
 
 const Navbar = ({
@@ -232,7 +224,7 @@ const Navbar = ({
 );
 
 /* ------------------------------------------------------------------ */
-/*  Hero Mini Map                                                      */
+/* Hero Mini Map                                                     */
 /* ------------------------------------------------------------------ */
 
 const HeroMiniMap = () => {
@@ -274,7 +266,7 @@ const HeroMiniMap = () => {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Landing Page                                                       */
+/* Landing Page                                                      */
 /* ------------------------------------------------------------------ */
 
 const LandingPage = ({
@@ -293,7 +285,6 @@ const LandingPage = ({
   error: string | null;
 }) => (
   <div className="mx-auto max-w-7xl px-6 pb-20 pt-24">
-    {/* Hero */}
     <div className="mb-24 grid items-center gap-12 lg:grid-cols-2">
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
         <div className="mb-6 flex items-center gap-2">
@@ -369,7 +360,6 @@ const LandingPage = ({
       </div>
     </div>
 
-    {/* Stats */}
     <div className="mb-20 grid gap-12 md:grid-cols-3">
       {LANDING_STATS.map((stat) => (
         <div key={stat.label}>
@@ -380,7 +370,6 @@ const LandingPage = ({
       ))}
     </div>
 
-    {/* Feature cards */}
     <div className="mb-20 grid gap-8 md:grid-cols-3">
       {[
         {
@@ -409,13 +398,12 @@ const LandingPage = ({
       ))}
     </div>
 
-    {/* CTA */}
     <div className="rounded-3xl bg-secondary p-12 text-center shadow-2xl lg:p-16">
       <h2 className="mb-4 font-display text-3xl font-bold text-white lg:text-4xl">Ready for a safer journey?</h2>
       <p className="mb-8 text-sm text-white/60">
         Search any Texas road to generate a live crash risk report.
       </p>
-      <button onClick={onSearchSubmit} className="btn-primary">
+      <button onClick={() => onSearchSubmit()} className="btn-primary">
         Get Started →
       </button>
     </div>
@@ -423,83 +411,10 @@ const LandingPage = ({
 );
 
 /* ------------------------------------------------------------------ */
-/*  Risk Map Page                                                      */
+/* Risk Map Page                                                     */
 /* ------------------------------------------------------------------ */
 
 const RiskMapPage = ({ report }: { report: LiveReport | null }) => {
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const markerRef = useRef<maplibregl.Marker | null>(null);
-
-  // Initialize the map once on mount
-  useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
-
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© OpenStreetMap contributors',
-          },
-        },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-      },
-      center: [-99.9018, 31.9686], // Texas fallback
-      zoom: 5.5,
-    });
-
-    map.addControl(new maplibregl.NavigationControl(), 'top-right');
-    mapRef.current = map;
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-      markerRef.current = null;
-    };
-  }, []);
-
-  // Move the map and drop a marker whenever the report changes
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !report) return;
-
-    const { latitude, longitude, bounds, tier } = report;
-
-    const tierColors: Record<RiskTier, string> = {
-      Low: '#10b981',
-      Moderate: '#0A705E',
-      High: '#f97316',
-      Critical: '#ef4444',
-    };
-
-    if (markerRef.current) markerRef.current.remove();
-    markerRef.current = new maplibregl.Marker({ color: tierColors[tier] })
-      .setLngLat([longitude, latitude])
-      .setPopup(
-        new maplibregl.Popup({ offset: 24 }).setHTML(
-          `<strong>${report.query}</strong><br/>Score: ${report.score}/100 · ${tier}`,
-        ),
-      )
-      .addTo(map);
-
-    if (bounds && bounds.length === 4) {
-      map.fitBounds(
-        [
-          [bounds[0], bounds[1]],
-          [bounds[2], bounds[3]],
-        ],
-        { padding: 80, duration: 1000, maxZoom: 15 },
-      );
-    } else {
-      map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1000 });
-    }
-  }, [report]);
-
   return (
     <div className="min-h-screen pt-16">
       <main className="p-6">
@@ -532,19 +447,19 @@ const RiskMapPage = ({ report }: { report: LiveReport | null }) => {
           ) : null}
         </div>
 
-        {/* Live MapLibre canvas */}
+        {/* Live MapLibre canvas powered by RiskMap.tsx */}
         <div
           className="relative overflow-hidden rounded-2xl border border-tertiary bg-secondary"
           style={{ height: 'calc(100vh - 200px)' }}
         >
-          <div ref={mapContainerRef} className="absolute inset-0 h-full w-full" />
+          <RiskMap bounds={report?.bounds} report={report} />
 
           {report ? (
-            <div className="pointer-events-none absolute left-6 top-6 max-w-md rounded-xl border border-white/10 bg-secondary/80 p-6 text-white shadow-lg backdrop-blur-md">
+            <div className="pointer-events-none absolute left-6 top-6 z-10 max-w-md rounded-xl border border-white/10 bg-secondary/80 p-6 text-white shadow-lg backdrop-blur-md">
               <p className="text-sm leading-relaxed opacity-90">{report.summary}</p>
             </div>
           ) : (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
               <div className="rounded-xl bg-white/90 px-8 py-6 text-center shadow-lg backdrop-blur-md">
                 <Search className="mx-auto mb-3 h-8 w-8 text-secondary/30" />
                 <p className="text-sm font-medium text-secondary/60">Search a road to populate the map</p>
@@ -553,7 +468,7 @@ const RiskMapPage = ({ report }: { report: LiveReport | null }) => {
           )}
 
           {report ? (
-            <div className="absolute right-6 top-6 w-56 rounded-xl border border-tertiary bg-white p-5 shadow-xl">
+            <div className="pointer-events-none absolute right-6 top-6 z-10 w-56 rounded-xl border border-tertiary bg-white p-5 shadow-xl">
               <h4 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-secondary/40">
                 Segment Details
               </h4>
@@ -582,7 +497,7 @@ const RiskMapPage = ({ report }: { report: LiveReport | null }) => {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Safety Report Page                                                 */
+/* Safety Report Page                                                */
 /* ------------------------------------------------------------------ */
 
 const SafetyReportPage = ({
@@ -619,7 +534,6 @@ const SafetyReportPage = ({
   return (
     <div className="min-h-screen pt-16">
       <main className="mx-auto max-w-5xl px-6 py-8">
-        {/* Header */}
         <div className="mb-2 flex items-center gap-2">
           <div className="h-1.5 w-1.5 rounded-full bg-primary" />
           <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
@@ -641,9 +555,7 @@ const SafetyReportPage = ({
         ) : null}
         {error ? <div className="mb-8 rounded-xl bg-white p-5 text-sm text-red-500 shadow-sm">{error}</div> : null}
 
-        {/* Score + Analysis */}
         <div className="mb-10 grid gap-6 md:grid-cols-2">
-          {/* Risk Score */}
           <div className="glass-card p-8">
             <div className="mb-8 flex items-center justify-between">
               <h4 className="text-lg font-bold">Risk Score</h4>
@@ -698,7 +610,6 @@ const SafetyReportPage = ({
             </div>
           </div>
 
-          {/* Analysis Summary */}
           <div className="glass-card p-8">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -857,7 +768,6 @@ const SafetyReportPage = ({
           </div>
         ) : null}
 
-        {/* Incident Logs */}
         {report ? (
           <div>
             <h3 className="mb-6 text-xl font-bold">Historical Incident Logs</h3>
@@ -907,7 +817,7 @@ const SafetyReportPage = ({
 };
 
 /* ------------------------------------------------------------------ */
-/*  About Page                                                         */
+/* About Page                                                        */
 /* ------------------------------------------------------------------ */
 
 const AboutPage = () => {
@@ -922,7 +832,6 @@ const AboutPage = () => {
 
   return (
     <div className="mx-auto max-w-5xl px-6 pb-20 pt-24">
-      {/* Intro */}
       <div className="mb-16">
         <h1 className="mb-6 font-display text-5xl font-bold text-secondary">
           About Road Report <span className="text-primary">AI</span>
@@ -934,7 +843,6 @@ const AboutPage = () => {
         </p>
       </div>
 
-      {/* Data Sources */}
       <div className="mb-16">
         <h2 className="mb-8 font-display text-2xl font-bold text-secondary">Data Sources</h2>
         <div className="grid gap-6 md:grid-cols-2">
@@ -973,7 +881,6 @@ const AboutPage = () => {
         </div>
       </div>
 
-      {/* RRS Formula */}
       <div className="mb-16">
         <h2 className="mb-8 font-display text-2xl font-bold text-secondary">Road Risk Score Formula</h2>
         <div className="mb-8 rounded-2xl border border-tertiary bg-white p-8 text-center shadow-sm">
@@ -998,7 +905,6 @@ const AboutPage = () => {
         </div>
       </div>
 
-      {/* Tech Stack */}
       <div className="mb-16">
         <h2 className="mb-8 font-display text-2xl font-bold text-secondary">Tech Stack</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1023,7 +929,6 @@ const AboutPage = () => {
         </div>
       </div>
 
-      {/* Model Stats */}
       <div className="mb-16 grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {[
           { val: '99.4%', label: 'Training accuracy' },
@@ -1039,7 +944,6 @@ const AboutPage = () => {
         ))}
       </div>
 
-      {/* Team */}
       <div>
         <h2 className="mb-8 font-display text-2xl font-bold text-secondary">The Team</h2>
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -1481,7 +1385,7 @@ const DocumentationPage = () => {
 };
 
 /* ------------------------------------------------------------------ */
-/*  App Root                                                           */
+/* App Root                                                          */
 /* ------------------------------------------------------------------ */
 
 export default function App() {
